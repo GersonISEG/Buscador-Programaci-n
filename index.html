@@ -1,568 +1,351 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Buscador de Personal</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/papaparse/5.4.1/papaparse.min.js"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;600;700&display=swap');
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Outfit', -apple-system, sans-serif;
-            background: #f9fafb;
-            color: #111827;
-        }
-        
-        .container {
-            max-width: 100%;
-            padding: 1rem;
-            padding-bottom: 3rem;
-        }
-        
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            padding: 2rem 1rem;
-            background: linear-gradient(135deg, #e6f1fb 0%, #ffffff 100%);
-            border-radius: 12px;
-            border: 1px solid #d1d5db;
-            margin-bottom: 1.5rem;
-        }
-        
-        .header-content h1 {
-            font-size: clamp(1.5rem, 5vw, 2rem);
-            font-weight: 700;
-            margin: 0 0 0.5rem 0;
-            color: #1e40af;
-        }
-        
-        .header-content p {
-            font-size: 0.9rem;
-            color: #6b7280;
-            margin: 0;
-        }
-        
-        .admin-btn {
-            width: 40px;
-            height: 40px;
-            background: #3b82f6;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 1.2rem;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .admin-btn:hover {
-            background: #2563eb;
-        }
-        
-        .hidden {
-            display: none !important;
-        }
-        
-        .modal {
-            background: #f0f9ff;
-            border: 2px solid #3b82f6;
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-        }
-        
-        .modal h2 {
-            font-size: 1.2rem;
-            font-weight: 600;
-            color: #1e40af;
-            margin-bottom: 1rem;
-        }
-        
-        .modal input,
-        .modal textarea {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid #d1d5db;
-            border-radius: 8px;
-            font-family: 'Outfit', sans-serif;
-            margin-bottom: 1rem;
-            box-sizing: border-box;
-        }
-        
-        .modal input:focus,
-        .modal textarea:focus {
-            outline: none;
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-        }
-        
-        .modal textarea {
-            font-family: monospace;
-            min-height: 80px;
-            resize: vertical;
-        }
-        
-        .button-group {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 0.75rem;
-            margin-bottom: 1rem;
-        }
-        
-        button {
-            padding: 10px 12px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: all 0.2s;
-        }
-        
-        button:hover:not(:disabled) {
-            transform: translateY(-1px);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        
-        .btn-primary {
-            background: #3b82f6;
-            color: white;
-            grid-column: 1 / -1;
-        }
-        
-        .btn-success {
-            background: #10b981;
-            color: white;
-        }
-        
-        .btn-danger {
-            background: #ef4444;
-            color: white;
-        }
-        
-        .btn-secondary {
-            background: #d1d5db;
-            color: #111827;
-        }
-        
-        .btn-refresh {
-            background: #10b981;
-            color: white;
-            grid-column: 1 / -1;
-            width: 100%;
-            padding: 12px;
-        }
-        
-        .error {
-            background: #fee2e2;
-            color: #991b1b;
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-            border: 1px solid #fecaca;
-        }
-        
-        .info {
-            background: #dbeafe;
-            border: 1px solid #93c5fd;
-            border-left: 3px solid #3b82f6;
-            padding: 10px 12px;
-            font-size: 0.9rem;
-            color: #1e40af;
-            border-radius: 6px;
-            line-height: 1.4;
-            margin-bottom: 1rem;
-        }
-        
-        .setup-message {
-            background: white;
-            border: 1px solid #d1d5db;
-            border-radius: 12px;
-            padding: 2rem;
-            text-align: center;
-        }
-        
-        .setup-message h2 {
-            font-size: 1.2rem;
-            font-weight: 600;
-            color: #111827;
-            margin-bottom: 1rem;
-        }
-        
-        .search-section {
-            margin-bottom: 2rem;
-        }
-        
-        .search-input {
-            width: 100%;
-            padding: 12px 16px 12px 40px;
-            font-size: 1.1rem;
-            border: 1px solid #d1d5db;
-            border-radius: 8px;
-            box-sizing: border-box;
-            position: relative;
-            margin-bottom: 1rem;
-        }
-        
-        .search-input:focus {
-            outline: none;
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-        }
-        
-        .results-section {
-            margin-top: 2rem;
-            margin-bottom: 2rem;
-        }
-        
-        .result-card {
-            background: white;
-            border: 1px solid #d1d5db;
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 1rem;
-        }
-        
-        .sheet-badge {
-            display: inline-block;
-            padding: 4px 10px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            border-radius: 6px;
-            margin-bottom: 1rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .badge-programacion {
-            background: #bfdbfe;
-            color: #1e40af;
-        }
-        
-        .badge-reten {
-            background: #fed7aa;
-            color: #92400e;
-        }
-        
-        .badge-observados {
-            background: #a7f3d0;
-            color: #065f46;
-        }
-        
-        .person-name {
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-bottom: 1rem;
-            color: #111827;
-        }
-        
-        .detail-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 8px 0;
-            font-size: 0.9rem;
-            border-bottom: 1px solid #e5e7eb;
-        }
-        
-        .detail-row:last-child {
-            border-bottom: none;
-        }
-        
-        .detail-label {
-            color: #6b7280;
-            font-weight: 600;
-        }
-        
-        .detail-value {
-            color: #111827;
-            font-weight: 500;
-            text-align: right;
-            word-break: break-word;
-            max-width: 60%;
-        }
-        
-        .detail-value.highlight {
-            color: #3b82f6;
-        }
-        
-        .no-results {
-            text-align: center;
-            padding: 2rem;
-            color: #6b7280;
-            background: #f9fafb;
-            border-radius: 8px;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <!-- Header -->
-        <div class="header">
-            <div class="header-content">
-                <h1>🔍 Control de Personal</h1>
-                <p>Búsqueda por DNI</p>
-            </div>
-            <button class="admin-btn" onclick="toggleAdminPanel()">⚙️</button>
-        </div>
+import { useState, useEffect } from "react";
+import Papa from "papaparse";
 
-        <!-- Admin Panel -->
-        <div id="adminPanel" class="modal hidden">
-            <h2>Panel Administrativo</h2>
-            
-            <div style="margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid #bfdbfe;">
-                <h3 style="font-size: 1rem; font-weight: 600; color: #1e40af; margin-bottom: 1rem;">Sheet Actual</h3>
-                <div id="currentSheet" style="background: white; padding: 1rem; border-radius: 8px; border: 1px solid #dbeafe;">
-                    <p>Sin configuración aún</p>
+const ADMIN_PASSWORD = "admin123";
+const SHEET_NAMES = ["PROGRAMACION", "RETEN EXCEDENTE", "OBSERVADOS"];
+
+function extractSheetId(url) {
+  const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  return match ? match[1] : null;
+}
+
+function formatRowData(row) {
+  return {
+    consola: row[0] || "-",
+    hora: row[2] || "-",
+    unidad: row[3] || "-",
+    nombre: row[4] || "-",
+    dni: row[5] || "-",
+    telefono: row[6] || "-",
+    estado: row[10] || "-",
+  };
+}
+
+export default function BuscadorPersonal() {
+  const [data, setData] = useState(null);
+  const [sheetId, setSheetId] = useState("");
+  const [searchDNI, setSearchDNI] = useState("");
+  const [results, setResults] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadingMsg, setLoadingMsg] = useState("");
+  const [error, setError] = useState("");
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [adminUnlocked, setAdminUnlocked] = useState(false);
+  const [passwordAttempt, setPasswordAttempt] = useState("");
+  const [newSheetUrl, setNewSheetUrl] = useState("");
+  const [lastUpdate, setLastUpdate] = useState("");
+  const [sheetLoadErrors, setSheetLoadErrors] = useState([]);
+
+  useEffect(() => {
+    loadFromStorage();
+  }, []);
+
+  const loadFromStorage = async () => {
+    try {
+      const stored = await window.storage.get("prog-sheet-id");
+      if (stored?.value) {
+        const id = stored.value;
+        setSheetId(id);
+        await loadGoogleSheet(id);
+      }
+    } catch {
+      // sin datos previos
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const saveIdToStorage = async (id) => {
+    try {
+      await window.storage.set("prog-sheet-id", id);
+    } catch (e) {
+      console.error("Error guardando ID:", e);
+    }
+  };
+
+  const loadGoogleSheet = async (id) => {
+    setIsLoading(true);
+    setError("");
+    setSheetLoadErrors([]);
+    const processedData = {};
+    const errors = [];
+
+    for (const sheetName of SHEET_NAMES) {
+      setLoadingMsg(`Cargando hoja: ${sheetName}...`);
+      const encoded = encodeURIComponent(sheetName);
+      // Usamos gviz/tq con nombre de hoja — más confiable que GID fijo
+      const csvUrl = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=${encoded}`;
+
+      try {
+        const response = await fetch(csvUrl);
+        if (!response.ok) {
+          errors.push(`${sheetName}: Error HTTP ${response.status}`);
+          continue;
+        }
+        const csvText = await response.text();
+        // Si Google devuelve HTML (ej: página de login), no es CSV válido
+        if (csvText.trim().startsWith("<!")) {
+          errors.push(`${sheetName}: El Sheet no es público o no tiene esa hoja`);
+          continue;
+        }
+        const parsed = Papa.parse(csvText, { header: false, skipEmptyLines: true });
+        processedData[sheetName] = parsed.data;
+      } catch (err) {
+        errors.push(`${sheetName}: ${err.message}`);
+      }
+    }
+
+    setSheetLoadErrors(errors);
+
+    if (Object.keys(processedData).length === 0) {
+      setError("No se pudo cargar ninguna hoja. Verifica que el Sheet sea público (cualquiera con el enlace puede ver).");
+      setIsLoading(false);
+      return;
+    }
+
+    setData(processedData);
+    setLastUpdate(new Date().toLocaleString("es-PE"));
+    setSearchDNI("");
+    setResults([]);
+    setIsLoading(false);
+    setLoadingMsg("");
+  };
+
+  const handleConfigureSheet = async () => {
+    const id = extractSheetId(newSheetUrl.trim());
+    if (!id) {
+      setError("Enlace inválido. Asegúrate de pegar el enlace completo de Google Sheets.");
+      return;
+    }
+    setSheetId(id);
+    await saveIdToStorage(id);
+    await loadGoogleSheet(id);
+    setNewSheetUrl("");
+    setShowAdmin(false);
+    setAdminUnlocked(false);
+  };
+
+  const searchByDNI = (dni) => {
+    setSearchDNI(dni);
+    if (!data || !dni.trim()) { setResults([]); return; }
+    const term = dni.trim().toLowerCase();
+    const found = [];
+    Object.entries(data).forEach(([sheet, rows]) => {
+      rows.forEach((row) => {
+        const dniCell = String(row[5] || "").toLowerCase();
+        if (dniCell.includes(term)) found.push({ sheet, rowData: row });
+      });
+    });
+    setResults(found);
+  };
+
+  const sheetBadge = (sheet) => {
+    if (sheet === "RETEN EXCEDENTE") return { bg: "#FEF3C7", color: "#92400E", label: "RETÉN" };
+    if (sheet === "OBSERVADOS") return { bg: "#FEE2E2", color: "#991B1B", label: "OBSERVADO" };
+    return { bg: "#DCFCE7", color: "#166534", label: "PROGRAMADO" };
+  };
+
+  // ─── ESTILOS ───────────────────────────────────────────────
+  const s = {
+    app: { fontFamily: "'Segoe UI', sans-serif", background: "#F0F4FF", minHeight: "100vh", color: "#1e293b" },
+    header: {
+      background: "linear-gradient(135deg, #1D4ED8 0%, #2563EB 60%, #3B82F6 100%)",
+      padding: "18px 20px", display: "flex", justifyContent: "space-between", alignItems: "center",
+      boxShadow: "0 4px 12px rgba(37,99,235,0.4)",
+    },
+    headerTitle: { color: "#fff", fontSize: 20, fontWeight: 700, margin: 0 },
+    headerSub: { color: "rgba(255,255,255,0.75)", fontSize: 12, margin: "2px 0 0" },
+    gearBtn: {
+      background: "rgba(255,255,255,0.2)", border: "none", borderRadius: 8,
+      color: "#fff", fontSize: 20, width: 40, height: 40, cursor: "pointer",
+      display: "flex", alignItems: "center", justifyContent: "center",
+    },
+    body: { padding: "16px" },
+    card: {
+      background: "#fff", borderRadius: 14, padding: "16px",
+      boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 14,
+    },
+    searchWrap: { position: "relative" },
+    searchInput: {
+      width: "100%", boxSizing: "border-box", padding: "14px 44px 14px 16px",
+      fontSize: 17, border: "2px solid #BFDBFE", borderRadius: 10, outline: "none",
+      background: "#F8FAFF", color: "#1e293b",
+    },
+    clearBtn: {
+      position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)",
+      background: "#E2E8F0", border: "none", borderRadius: "50%", width: 26, height: 26,
+      cursor: "pointer", fontSize: 13, color: "#64748B",
+    },
+    hint: { fontSize: 12, color: "#64748B", marginTop: 8, padding: "8px 12px", background: "#F0F9FF", borderRadius: 8, borderLeft: "3px solid #3B82F6" },
+    resultCard: {
+      background: "#fff", borderRadius: 12, padding: "14px",
+      boxShadow: "0 2px 8px rgba(0,0,0,0.07)", marginBottom: 12,
+      borderLeft: "4px solid #3B82F6",
+    },
+    badge: (sheet) => ({
+      display: "inline-block", padding: "3px 10px", borderRadius: 20, fontSize: 11,
+      fontWeight: 700, background: sheetBadge(sheet).bg, color: sheetBadge(sheet).color,
+      marginBottom: 8,
+    }),
+    nameRow: { fontSize: 17, fontWeight: 700, color: "#1e293b", marginBottom: 6 },
+    grid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 12px", marginTop: 6 },
+    cell: { fontSize: 13 },
+    cellLabel: { color: "#94A3B8", fontSize: 11, display: "block" },
+    noResult: { textAlign: "center", padding: 30, color: "#94A3B8" },
+    errBox: { background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 10, padding: "12px 14px", marginBottom: 12, color: "#DC2626", fontSize: 13 },
+    warnBox: { background: "#FFFBEB", border: "1px solid #FCD34D", borderRadius: 10, padding: "10px 14px", marginBottom: 10, color: "#92400E", fontSize: 12 },
+    adminCard: { background: "#EFF6FF", borderRadius: 14, padding: 16, marginBottom: 14, border: "1px solid #BFDBFE" },
+    label: { fontSize: 13, fontWeight: 600, color: "#1D4ED8", marginBottom: 6, display: "block" },
+    input: { width: "100%", boxSizing: "border-box", padding: "10px 12px", fontSize: 14, border: "1.5px solid #BFDBFE", borderRadius: 8, marginBottom: 10, outline: "none" },
+    textarea: { width: "100%", boxSizing: "border-box", padding: "10px 12px", fontSize: 13, border: "1.5px solid #BFDBFE", borderRadius: 8, marginBottom: 10, outline: "none", minHeight: 72, resize: "vertical" },
+    btnPrimary: { background: "#2563EB", color: "#fff", border: "none", borderRadius: 10, padding: "12px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer", width: "100%" },
+    btnSecondary: { background: "#E2E8F0", color: "#475569", border: "none", borderRadius: 10, padding: "11px 20px", fontSize: 14, cursor: "pointer", width: "100%", marginTop: 8 },
+    lastUpdate: { fontSize: 11, color: "#94A3B8", textAlign: "right", marginTop: 4 },
+    loading: { textAlign: "center", padding: 40, color: "#64748B" },
+    spinner: { width: 36, height: 36, border: "4px solid #BFDBFE", borderTop: "4px solid #2563EB", borderRadius: "50%", animation: "spin 0.9s linear infinite", margin: "0 auto 14px" },
+    countBadge: { background: "#EFF6FF", color: "#1D4ED8", borderRadius: 20, padding: "4px 12px", fontSize: 13, fontWeight: 600, display: "inline-block", marginBottom: 12 },
+  };
+
+  // ─── RENDER ───────────────────────────────────────────────
+  if (isLoading && sheetId) {
+    return (
+      <div style={s.app}>
+        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+        <div style={s.header}>
+          <div><h1 style={s.headerTitle}>🔍 Control de Personal</h1><p style={s.headerSub}>Búsqueda por DNI</p></div>
+        </div>
+        <div style={s.loading}>
+          <div style={s.spinner} />
+          <p style={{ fontWeight: 600 }}>{loadingMsg || "Cargando datos..."}</p>
+          <p style={{ fontSize: 12, color: "#94A3B8" }}>Conectando con Google Sheets</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={s.app}>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}} input:focus,textarea:focus{border-color:#2563EB!important;}`}</style>
+
+      {/* HEADER */}
+      <div style={s.header}>
+        <div>
+          <h1 style={s.headerTitle}>🔍 Control de Personal</h1>
+          <p style={s.headerSub}>Búsqueda por DNI</p>
+        </div>
+        <button style={s.gearBtn} onClick={() => { setShowAdmin(!showAdmin); setAdminUnlocked(false); setPasswordAttempt(""); setError(""); }}>⚙️</button>
+      </div>
+
+      <div style={s.body}>
+
+        {/* PANEL ADMIN */}
+        {showAdmin && (
+          <div style={s.adminCard}>
+            <span style={{ ...s.label, fontSize: 16 }}>⚙️ Panel Administrativo</span>
+
+            {/* Info sheet actual */}
+            <div style={{ marginBottom: 14 }}>
+              <span style={s.label}>Sheet Actual</span>
+              <div style={{ ...s.input, background: "#fff", color: sheetId ? "#1e293b" : "#94A3B8", cursor: "default" }}>
+                {sheetId ? `ID: ...${sheetId.slice(-12)}` : "Sin configuración aún"}
+              </div>
+            </div>
+
+            {!adminUnlocked ? (
+              <>
+                <span style={s.label}>Contraseña Admin</span>
+                <input style={s.input} type="password" placeholder="Contraseña" value={passwordAttempt}
+                  onChange={e => { setPasswordAttempt(e.target.value); setError(""); }}
+                  onKeyDown={e => { if (e.key === "Enter") { if (passwordAttempt === ADMIN_PASSWORD) { setAdminUnlocked(true); setPasswordAttempt(""); } else { setError("Contraseña incorrecta"); setPasswordAttempt(""); } } }} />
+                {error && <div style={s.errBox}>⚠️ {error}</div>}
+                <button style={s.btnPrimary} onClick={() => { if (passwordAttempt === ADMIN_PASSWORD) { setAdminUnlocked(true); setPasswordAttempt(""); } else { setError("Contraseña incorrecta"); setPasswordAttempt(""); } }}>Ingresar</button>
+              </>
+            ) : (
+              <>
+                <span style={s.label}>Cargar nuevo Google Sheet</span>
+                <div style={{ background: "#DBEAFE", borderRadius: 8, padding: "8px 12px", marginBottom: 10, fontSize: 12, color: "#1D4ED8" }}>
+                  ℹ️ El Sheet debe estar en modo <strong>"Cualquier persona con el enlace puede ver"</strong>
                 </div>
+                <textarea style={s.textarea} placeholder="Pega aquí el enlace de Google Sheets" value={newSheetUrl} onChange={e => { setNewSheetUrl(e.target.value); setError(""); }} />
+                {error && <div style={s.errBox}>⚠️ {error}</div>}
+                {sheetLoadErrors.length > 0 && (
+                  <div style={s.warnBox}>
+                    <strong>Advertencias:</strong><br />
+                    {sheetLoadErrors.map((e, i) => <div key={i}>• {e}</div>)}
+                  </div>
+                )}
+                <button style={s.btnPrimary} onClick={handleConfigureSheet}>📥 Cargar Sheet</button>
+              </>
+            )}
+            <button style={s.btnSecondary} onClick={() => { setShowAdmin(false); setAdminUnlocked(false); setPasswordAttempt(""); setError(""); }}>Cerrar Panel</button>
+          </div>
+        )}
+
+        {/* SIN DATOS */}
+        {!data && !isLoading && (
+          <div style={{ ...s.card, textAlign: "center", padding: 32 }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
+            <p style={{ fontWeight: 600, color: "#1e293b" }}>Sin datos cargados</p>
+            <p style={{ color: "#64748B", fontSize: 14 }}>Presiona ⚙️ arriba para configurar tu Google Sheet</p>
+          </div>
+        )}
+
+        {/* BUSCADOR */}
+        {data && !showAdmin && (
+          <>
+            <div style={s.card}>
+              <div style={s.searchWrap}>
+                <input style={s.searchInput} type="text" inputMode="numeric"
+                  placeholder="Ingresa DNI (ej: 76305088)" value={searchDNI}
+                  onChange={e => searchByDNI(e.target.value)} />
+                {searchDNI && <button style={s.clearBtn} onClick={() => { setSearchDNI(""); setResults([]); }}>✕</button>}
+              </div>
+              <div style={s.hint}>ℹ️ Si tu DNI empieza con 0, omítelo. Ej: 076305088 → escribir 76305088</div>
+              {lastUpdate && <div style={s.lastUpdate}>Última carga: {lastUpdate}</div>}
+              {sheetLoadErrors.length > 0 && (
+                <div style={{ ...s.warnBox, marginTop: 10 }}>
+                  {sheetLoadErrors.map((e, i) => <div key={i}>⚠️ {e}</div>)}
+                </div>
+              )}
             </div>
 
-            <div>
-                <h3 style="font-size: 1rem; font-weight: 600; color: #1e40af; margin-bottom: 1rem;">Cargar nuevo Google Sheet</h3>
-                <textarea id="sheetUrl" placeholder="Pega aquí el enlace del Google Sheet (ej: https://docs.google.com/spreadsheets/d/...)"></textarea>
-                <button class="btn-primary" onclick="loadSheet()">📥 Cargar Sheet</button>
-            </div>
-
-            <div id="adminError" class="error hidden"></div>
-
-            <button class="btn-secondary" style="width: 100%; margin-top: 1rem;" onclick="toggleAdminPanel()">Cerrar Panel</button>
-        </div>
-
-        <!-- Setup Message -->
-        <div id="setupMessage" class="setup-message">
-            <h2>⏳ Esperando configuración</h2>
-            <p>El administrador debe configurar un Google Sheet para comenzar.</p>
-            <p style="color: #6b7280; font-size: 0.85rem; margin-top: 1rem;">Si eres administrador, haz click en el botón ⚙️ en la esquina superior derecha.</p>
-        </div>
-
-        <!-- Search Section -->
-        <div id="searchSection" class="search-section hidden">
-            <input type="text" class="search-input" id="searchInput" placeholder="Ingresa DNI (ej: 76305088)" inputMode="numeric">
-            <div class="info">ℹ️ Si tu DNI comienza con 0, omítelo. Ej: 076305088 → escribir 76305088</div>
-            <div id="lastUpdate" style="font-size: 0.8rem; color: #6b7280; text-align: center;"></div>
-        </div>
-
-        <!-- Results Section -->
-        <div id="resultsSection" class="results-section hidden"></div>
-
-        <!-- Refresh Button -->
-        <div id="refreshSection" class="hidden" style="margin-bottom: 1rem;">
-            <button class="btn-refresh" onclick="refreshData()">🔄 Refrescar datos</button>
-        </div>
+            {/* RESULTADOS */}
+            {searchDNI && (
+              <div>
+                {results.length > 0 ? (
+                  <>
+                    <div style={s.countBadge}>{results.length} resultado{results.length !== 1 ? "s" : ""} encontrado{results.length !== 1 ? "s" : ""}</div>
+                    {results.map((r, i) => {
+                      const f = formatRowData(r.rowData);
+                      const b = sheetBadge(r.sheet);
+                      return (
+                        <div key={i} style={{ ...s.resultCard, borderLeftColor: b.color }}>
+                          <span style={s.badge(r.sheet)}>{b.label}</span>
+                          <div style={s.nameRow}>{f.nombre}</div>
+                          <div style={s.grid}>
+                            <div style={s.cell}><span style={s.cellLabel}>DNI</span>{f.dni}</div>
+                            <div style={s.cell}><span style={s.cellLabel}>Teléfono</span>{f.telefono}</div>
+                            <div style={s.cell}><span style={s.cellLabel}>Unidad</span>{f.unidad}</div>
+                            <div style={s.cell}><span style={s.cellLabel}>Consola</span>{f.consola}</div>
+                            <div style={s.cell}><span style={s.cellLabel}>Hora</span>{f.hora}</div>
+                            <div style={s.cell}><span style={s.cellLabel}>Estado</span>{f.estado}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </>
+                ) : (
+                  <div style={s.noResult}>
+                    <div style={{ fontSize: 40, marginBottom: 10 }}>🔎</div>
+                    <p style={{ fontWeight: 600 }}>DNI no encontrado</p>
+                    <p style={{ fontSize: 13, color: "#94A3B8" }}>Verifica el número e intenta de nuevo</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
-
-    <script>
-        let sheetData = null;
-        let currentSheetId = null;
-
-        // Cargar configuración al iniciar
-        window.addEventListener('DOMContentLoaded', function() {
-            loadStoredConfig();
-            setupSearchListener();
-        });
-
-        function loadStoredConfig() {
-            const stored = localStorage.getItem('buscador-sheet-config');
-            if (stored) {
-                try {
-                    const config = JSON.parse(stored);
-                    currentSheetId = config.sheetId;
-                    document.getElementById('currentSheet').innerHTML = `<p>ID: <code>${currentSheetId}</code></p><p style="margin-top: 0.5rem;">Última carga: ${config.timestamp}</p>`;
-                    loadSheetData(currentSheetId);
-                } catch (e) {
-                    console.error('Error cargando configuración:', e);
-                }
-            }
-        }
-
-        function toggleAdminPanel() {
-            const panel = document.getElementById('adminPanel');
-            panel.classList.toggle('hidden');
-        }
-
-        function extractSheetId(url) {
-            const match = url.match(/\/spreadsheets\/d\/([^\/]+)/);
-            return match ? match[1] : null;
-        }
-
-        function loadSheet() {
-            const url = document.getElementById('sheetUrl').value.trim();
-            const errorDiv = document.getElementById('adminError');
-            
-            if (!url) {
-                errorDiv.classList.remove('hidden');
-                errorDiv.textContent = 'Por favor pega un enlace válido';
-                return;
-            }
-
-            const id = extractSheetId(url);
-            if (!id) {
-                errorDiv.classList.remove('hidden');
-                errorDiv.textContent = 'Enlace de Google Sheet inválido';
-                return;
-            }
-
-            currentSheetId = id;
-            document.getElementById('sheetUrl').value = '';
-            errorDiv.classList.add('hidden');
-            
-            // Guardar configuración
-            localStorage.setItem('buscador-sheet-config', JSON.stringify({
-                sheetId: id,
-                timestamp: new Date().toLocaleString('es-PE')
-            }));
-
-            loadSheetData(id);
-        }
-
-        function loadSheetData(id) {
-            const sheetNames = ['PROGRAMACION', 'RETEN EXCEDENTE', 'OBSERVADOS'];
-            const gidValues = [0, 1, 2];
-            sheetData = {};
-            let loadedCount = 0;
-
-            sheetNames.forEach((name, index) => {
-                const gid = gidValues[index];
-                const csvUrl = `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}`;
-                
-                fetch(csvUrl)
-                    .then(response => response.text())
-                    .then(csv => {
-                        Papa.parse(csv, {
-                            header: false,
-                            skipEmptyLines: true,
-                            complete: (results) => {
-                                sheetData[name] = results.data;
-                                loadedCount++;
-                                
-                                if (loadedCount === sheetNames.length) {
-                                    showSearchInterface();
-                                    toggleAdminPanel();
-                                    updateLastUpdate();
-                                }
-                            }
-                        });
-                    })
-                    .catch(error => {
-                        console.error(`Error cargando ${name}:`, error);
-                        loadedCount++;
-                        if (loadedCount === sheetNames.length && loadedCount > 0) {
-                            showSearchInterface();
-                        }
-                    });
-            });
-        }
-
-        function showSearchInterface() {
-            document.getElementById('setupMessage').classList.add('hidden');
-            document.getElementById('searchSection').classList.remove('hidden');
-            document.getElementById('refreshSection').classList.remove('hidden');
-        }
-
-        function setupSearchListener() {
-            const input = document.getElementById('searchInput');
-            if (input) {
-                input.addEventListener('input', (e) => {
-                    search(e.target.value);
-                });
-            }
-        }
-
-        function search(dni) {
-            if (!sheetData) return;
-
-            const resultsSection = document.getElementById('resultsSection');
-            
-            if (!dni.trim()) {
-                resultsSection.innerHTML = '';
-                resultsSection.classList.add('hidden');
-                return;
-            }
-
-            const results = [];
-            Object.entries(sheetData).forEach(([sheetName, rows]) => {
-                rows.forEach(row => {
-                    const dniValue = String(row[5] || '').trim();
-                    if (dniValue.includes(dni.trim())) {
-                        results.push({ sheet: sheetName, row });
-                    }
-                });
-            });
-
-            if (results.length === 0) {
-                resultsSection.innerHTML = `<div class="no-results">❌ No se encontraron resultados para: ${dni}</div>`;
-                resultsSection.classList.remove('hidden');
-                return;
-            }
-
-            let html = `<div style="font-size: 0.9rem; color: #374151; margin-bottom: 1rem; padding: 8px 12px; background: #f3f4f6; border-radius: 8px; text-align: center;">${results.length} resultado${results.length !== 1 ? 's' : ''} encontrado${results.length !== 1 ? 's' : ''}</div>`;
-
-            results.forEach(result => {
-                const row = result.row;
-                const badgeClass = result.sheet === 'RETEN EXCEDENTE' ? 'badge-reten' : 
-                                   result.sheet === 'OBSERVADOS' ? 'badge-observados' : 'badge-programacion';
-                
-                html += `
-                    <div class="result-card">
-                        <span class="sheet-badge ${badgeClass}">${result.sheet}</span>
-                        <div class="person-name">${row[4] || '-'}</div>
-                        <div class="detail-row">
-                            <span class="detail-label">DNI</span>
-                            <span class="detail-value highlight">${row[5] || '-'}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">Teléfono</span>
-                            <span class="detail-value">${row[6] || '-'}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">Unidad</span>
-                            <span class="detail-value">${row[3] || '-'}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">Consola</span>
-                            <span class="detail-value">${row[0] || '-'}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">Hora</span>
-                            <span class="detail-value">${row[2] || '-'}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">Estado</span>
-                            <span class="detail-value">${row[10] || '-'}</span>
-                        </div>
-                    </div>
-                `;
-            });
-
-            resultsSection.innerHTML = html;
-            resultsSection.classList.remove('hidden');
-        }
-
-        function refreshData() {
-            if (currentSheetId) {
-                loadSheetData(currentSheetId);
-            }
-        }
-
-        function updateLastUpdate() {
-            const stored = localStorage.getItem('buscador-sheet-config');
-            if (stored) {
-                const config = JSON.parse(stored);
-                document.getElementById('lastUpdate').textContent = `Última carga: ${config.timestamp}`;
-            }
-        }
-    </script>
-</body>
-</html>
+  );
+}
