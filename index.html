@@ -1,351 +1,324 @@
-import { useState, useEffect } from "react";
-import Papa from "papaparse";
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Control de Personal</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', sans-serif; background: #F0F4FF; min-height: 100vh; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 4px solid #BFDBFE;
+      border-top: 4px solid #2563EB;
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+      margin: 0 auto 14px;
+    }
+    input:focus, textarea:focus { border-color: #2563EB !important; outline: none; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
 
-const ADMIN_PASSWORD = "admin123";
-const SHEET_NAMES = ["PROGRAMACION", "RETEN EXCEDENTE", "OBSERVADOS"];
+  <script type="text/babel">
+    const { useState, useEffect } = React;
 
-function extractSheetId(url) {
-  const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-  return match ? match[1] : null;
-}
+    const ADMIN_PASSWORD = "admin123";
+    const SHEET_NAMES = ["PROGRAMACION", "RETEN EXCEDENTE", "OBSERVADOS"];
 
-function formatRowData(row) {
-  return {
-    consola: row[0] || "-",
-    hora: row[2] || "-",
-    unidad: row[3] || "-",
-    nombre: row[4] || "-",
-    dni: row[5] || "-",
-    telefono: row[6] || "-",
-    estado: row[10] || "-",
-  };
-}
+    // Storage simple usando localStorage (sin window.storage de Claude)
+    const storage = {
+      get: (key) => { try { return localStorage.getItem(key); } catch { return null; } },
+      set: (key, val) => { try { localStorage.setItem(key, val); } catch {} }
+    };
 
-export default function BuscadorPersonal() {
-  const [data, setData] = useState(null);
-  const [sheetId, setSheetId] = useState("");
-  const [searchDNI, setSearchDNI] = useState("");
-  const [results, setResults] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadingMsg, setLoadingMsg] = useState("");
-  const [error, setError] = useState("");
-  const [showAdmin, setShowAdmin] = useState(false);
-  const [adminUnlocked, setAdminUnlocked] = useState(false);
-  const [passwordAttempt, setPasswordAttempt] = useState("");
-  const [newSheetUrl, setNewSheetUrl] = useState("");
-  const [lastUpdate, setLastUpdate] = useState("");
-  const [sheetLoadErrors, setSheetLoadErrors] = useState([]);
+    function extractSheetId(url) {
+      const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+      return match ? match[1] : null;
+    }
 
-  useEffect(() => {
-    loadFromStorage();
-  }, []);
+    function formatRowData(row) {
+      return {
+        consola:  row[0] || "-",
+        hora:     row[2] || "-",
+        unidad:   row[3] || "-",
+        nombre:   row[4] || "-",
+        dni:      row[5] || "-",
+        telefono: row[6] || "-",
+        estado:   row[10] || "-",
+      };
+    }
 
-  const loadFromStorage = async () => {
-    try {
-      const stored = await window.storage.get("prog-sheet-id");
-      if (stored?.value) {
-        const id = stored.value;
+    function sheetBadge(sheet) {
+      if (sheet === "RETEN EXCEDENTE") return { bg: "#FEF3C7", color: "#92400E", label: "RETÉN" };
+      if (sheet === "OBSERVADOS")      return { bg: "#FEE2E2", color: "#991B1B", label: "OBSERVADO" };
+      return { bg: "#DCFCE7", color: "#166534", label: "PROGRAMADO" };
+    }
+
+    function App() {
+      const [data,            setData]            = useState(null);
+      const [sheetId,         setSheetId]         = useState("");
+      const [searchDNI,       setSearchDNI]       = useState("");
+      const [results,         setResults]         = useState([]);
+      const [isLoading,       setIsLoading]       = useState(true);
+      const [loadingMsg,      setLoadingMsg]      = useState("");
+      const [error,           setError]           = useState("");
+      const [showAdmin,       setShowAdmin]       = useState(false);
+      const [adminUnlocked,   setAdminUnlocked]   = useState(false);
+      const [passwordAttempt, setPasswordAttempt] = useState("");
+      const [newSheetUrl,     setNewSheetUrl]     = useState("");
+      const [lastUpdate,      setLastUpdate]      = useState("");
+      const [sheetErrors,     setSheetErrors]     = useState([]);
+
+      useEffect(() => {
+        const savedId = storage.get("prog-sheet-id");
+        if (savedId) {
+          setSheetId(savedId);
+          loadGoogleSheet(savedId).finally(() => setIsLoading(false));
+        } else {
+          setIsLoading(false);
+        }
+      }, []);
+
+      async function loadGoogleSheet(id) {
+        setIsLoading(true);
+        setError("");
+        setSheetErrors([]);
+        const processedData = {};
+        const errors = [];
+
+        for (const sheetName of SHEET_NAMES) {
+          setLoadingMsg(`Cargando hoja: ${sheetName}...`);
+          const encoded = encodeURIComponent(sheetName);
+          const csvUrl = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=${encoded}`;
+
+          try {
+            const res = await fetch(csvUrl);
+            if (!res.ok) { errors.push(`${sheetName}: Error HTTP ${res.status}`); continue; }
+            const text = await res.text();
+            if (text.trim().startsWith("<!")) {
+              errors.push(`${sheetName}: El Sheet no es público o la hoja no existe`);
+              continue;
+            }
+            const parsed = Papa.parse(text, { header: false, skipEmptyLines: true });
+            processedData[sheetName] = parsed.data;
+          } catch (err) {
+            errors.push(`${sheetName}: ${err.message}`);
+          }
+        }
+
+        setSheetErrors(errors);
+
+        if (Object.keys(processedData).length === 0) {
+          setError("No se pudo cargar ninguna hoja. Asegúrate de que el Sheet sea público.");
+          setIsLoading(false);
+          return;
+        }
+
+        setData(processedData);
+        setLastUpdate(new Date().toLocaleString("es-PE"));
+        setSearchDNI("");
+        setResults([]);
+        setIsLoading(false);
+        setLoadingMsg("");
+      }
+
+      function handleConfigureSheet() {
+        const id = extractSheetId(newSheetUrl.trim());
+        if (!id) { setError("Enlace inválido. Pega el enlace completo de Google Sheets."); return; }
         setSheetId(id);
-        await loadGoogleSheet(id);
+        storage.set("prog-sheet-id", id);
+        loadGoogleSheet(id);
+        setNewSheetUrl("");
+        setShowAdmin(false);
+        setAdminUnlocked(false);
       }
-    } catch {
-      // sin datos previos
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
-  const saveIdToStorage = async (id) => {
-    try {
-      await window.storage.set("prog-sheet-id", id);
-    } catch (e) {
-      console.error("Error guardando ID:", e);
-    }
-  };
-
-  const loadGoogleSheet = async (id) => {
-    setIsLoading(true);
-    setError("");
-    setSheetLoadErrors([]);
-    const processedData = {};
-    const errors = [];
-
-    for (const sheetName of SHEET_NAMES) {
-      setLoadingMsg(`Cargando hoja: ${sheetName}...`);
-      const encoded = encodeURIComponent(sheetName);
-      // Usamos gviz/tq con nombre de hoja — más confiable que GID fijo
-      const csvUrl = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=${encoded}`;
-
-      try {
-        const response = await fetch(csvUrl);
-        if (!response.ok) {
-          errors.push(`${sheetName}: Error HTTP ${response.status}`);
-          continue;
-        }
-        const csvText = await response.text();
-        // Si Google devuelve HTML (ej: página de login), no es CSV válido
-        if (csvText.trim().startsWith("<!")) {
-          errors.push(`${sheetName}: El Sheet no es público o no tiene esa hoja`);
-          continue;
-        }
-        const parsed = Papa.parse(csvText, { header: false, skipEmptyLines: true });
-        processedData[sheetName] = parsed.data;
-      } catch (err) {
-        errors.push(`${sheetName}: ${err.message}`);
+      function searchByDNI(dni) {
+        setSearchDNI(dni);
+        if (!data || !dni.trim()) { setResults([]); return; }
+        const term = dni.trim().toLowerCase();
+        const found = [];
+        Object.entries(data).forEach(([sheet, rows]) => {
+          rows.forEach(row => {
+            if (String(row[5] || "").toLowerCase().includes(term))
+              found.push({ sheet, rowData: row });
+          });
+        });
+        setResults(found);
       }
-    }
 
-    setSheetLoadErrors(errors);
-
-    if (Object.keys(processedData).length === 0) {
-      setError("No se pudo cargar ninguna hoja. Verifica que el Sheet sea público (cualquiera con el enlace puede ver).");
-      setIsLoading(false);
-      return;
-    }
-
-    setData(processedData);
-    setLastUpdate(new Date().toLocaleString("es-PE"));
-    setSearchDNI("");
-    setResults([]);
-    setIsLoading(false);
-    setLoadingMsg("");
-  };
-
-  const handleConfigureSheet = async () => {
-    const id = extractSheetId(newSheetUrl.trim());
-    if (!id) {
-      setError("Enlace inválido. Asegúrate de pegar el enlace completo de Google Sheets.");
-      return;
-    }
-    setSheetId(id);
-    await saveIdToStorage(id);
-    await loadGoogleSheet(id);
-    setNewSheetUrl("");
-    setShowAdmin(false);
-    setAdminUnlocked(false);
-  };
-
-  const searchByDNI = (dni) => {
-    setSearchDNI(dni);
-    if (!data || !dni.trim()) { setResults([]); return; }
-    const term = dni.trim().toLowerCase();
-    const found = [];
-    Object.entries(data).forEach(([sheet, rows]) => {
-      rows.forEach((row) => {
-        const dniCell = String(row[5] || "").toLowerCase();
-        if (dniCell.includes(term)) found.push({ sheet, rowData: row });
-      });
-    });
-    setResults(found);
-  };
-
-  const sheetBadge = (sheet) => {
-    if (sheet === "RETEN EXCEDENTE") return { bg: "#FEF3C7", color: "#92400E", label: "RETÉN" };
-    if (sheet === "OBSERVADOS") return { bg: "#FEE2E2", color: "#991B1B", label: "OBSERVADO" };
-    return { bg: "#DCFCE7", color: "#166534", label: "PROGRAMADO" };
-  };
-
-  // ─── ESTILOS ───────────────────────────────────────────────
-  const s = {
-    app: { fontFamily: "'Segoe UI', sans-serif", background: "#F0F4FF", minHeight: "100vh", color: "#1e293b" },
-    header: {
-      background: "linear-gradient(135deg, #1D4ED8 0%, #2563EB 60%, #3B82F6 100%)",
-      padding: "18px 20px", display: "flex", justifyContent: "space-between", alignItems: "center",
-      boxShadow: "0 4px 12px rgba(37,99,235,0.4)",
-    },
-    headerTitle: { color: "#fff", fontSize: 20, fontWeight: 700, margin: 0 },
-    headerSub: { color: "rgba(255,255,255,0.75)", fontSize: 12, margin: "2px 0 0" },
-    gearBtn: {
-      background: "rgba(255,255,255,0.2)", border: "none", borderRadius: 8,
-      color: "#fff", fontSize: 20, width: 40, height: 40, cursor: "pointer",
-      display: "flex", alignItems: "center", justifyContent: "center",
-    },
-    body: { padding: "16px" },
-    card: {
-      background: "#fff", borderRadius: 14, padding: "16px",
-      boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 14,
-    },
-    searchWrap: { position: "relative" },
-    searchInput: {
-      width: "100%", boxSizing: "border-box", padding: "14px 44px 14px 16px",
-      fontSize: 17, border: "2px solid #BFDBFE", borderRadius: 10, outline: "none",
-      background: "#F8FAFF", color: "#1e293b",
-    },
-    clearBtn: {
-      position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)",
-      background: "#E2E8F0", border: "none", borderRadius: "50%", width: 26, height: 26,
-      cursor: "pointer", fontSize: 13, color: "#64748B",
-    },
-    hint: { fontSize: 12, color: "#64748B", marginTop: 8, padding: "8px 12px", background: "#F0F9FF", borderRadius: 8, borderLeft: "3px solid #3B82F6" },
-    resultCard: {
-      background: "#fff", borderRadius: 12, padding: "14px",
-      boxShadow: "0 2px 8px rgba(0,0,0,0.07)", marginBottom: 12,
-      borderLeft: "4px solid #3B82F6",
-    },
-    badge: (sheet) => ({
-      display: "inline-block", padding: "3px 10px", borderRadius: 20, fontSize: 11,
-      fontWeight: 700, background: sheetBadge(sheet).bg, color: sheetBadge(sheet).color,
-      marginBottom: 8,
-    }),
-    nameRow: { fontSize: 17, fontWeight: 700, color: "#1e293b", marginBottom: 6 },
-    grid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 12px", marginTop: 6 },
-    cell: { fontSize: 13 },
-    cellLabel: { color: "#94A3B8", fontSize: 11, display: "block" },
-    noResult: { textAlign: "center", padding: 30, color: "#94A3B8" },
-    errBox: { background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 10, padding: "12px 14px", marginBottom: 12, color: "#DC2626", fontSize: 13 },
-    warnBox: { background: "#FFFBEB", border: "1px solid #FCD34D", borderRadius: 10, padding: "10px 14px", marginBottom: 10, color: "#92400E", fontSize: 12 },
-    adminCard: { background: "#EFF6FF", borderRadius: 14, padding: 16, marginBottom: 14, border: "1px solid #BFDBFE" },
-    label: { fontSize: 13, fontWeight: 600, color: "#1D4ED8", marginBottom: 6, display: "block" },
-    input: { width: "100%", boxSizing: "border-box", padding: "10px 12px", fontSize: 14, border: "1.5px solid #BFDBFE", borderRadius: 8, marginBottom: 10, outline: "none" },
-    textarea: { width: "100%", boxSizing: "border-box", padding: "10px 12px", fontSize: 13, border: "1.5px solid #BFDBFE", borderRadius: 8, marginBottom: 10, outline: "none", minHeight: 72, resize: "vertical" },
-    btnPrimary: { background: "#2563EB", color: "#fff", border: "none", borderRadius: 10, padding: "12px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer", width: "100%" },
-    btnSecondary: { background: "#E2E8F0", color: "#475569", border: "none", borderRadius: 10, padding: "11px 20px", fontSize: 14, cursor: "pointer", width: "100%", marginTop: 8 },
-    lastUpdate: { fontSize: 11, color: "#94A3B8", textAlign: "right", marginTop: 4 },
-    loading: { textAlign: "center", padding: 40, color: "#64748B" },
-    spinner: { width: 36, height: 36, border: "4px solid #BFDBFE", borderTop: "4px solid #2563EB", borderRadius: "50%", animation: "spin 0.9s linear infinite", margin: "0 auto 14px" },
-    countBadge: { background: "#EFF6FF", color: "#1D4ED8", borderRadius: 20, padding: "4px 12px", fontSize: 13, fontWeight: 600, display: "inline-block", marginBottom: 12 },
-  };
-
-  // ─── RENDER ───────────────────────────────────────────────
-  if (isLoading && sheetId) {
-    return (
-      <div style={s.app}>
-        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-        <div style={s.header}>
-          <div><h1 style={s.headerTitle}>🔍 Control de Personal</h1><p style={s.headerSub}>Búsqueda por DNI</p></div>
-        </div>
-        <div style={s.loading}>
-          <div style={s.spinner} />
-          <p style={{ fontWeight: 600 }}>{loadingMsg || "Cargando datos..."}</p>
-          <p style={{ fontSize: 12, color: "#94A3B8" }}>Conectando con Google Sheets</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div style={s.app}>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}} input:focus,textarea:focus{border-color:#2563EB!important;}`}</style>
-
-      {/* HEADER */}
-      <div style={s.header}>
-        <div>
-          <h1 style={s.headerTitle}>🔍 Control de Personal</h1>
-          <p style={s.headerSub}>Búsqueda por DNI</p>
-        </div>
-        <button style={s.gearBtn} onClick={() => { setShowAdmin(!showAdmin); setAdminUnlocked(false); setPasswordAttempt(""); setError(""); }}>⚙️</button>
-      </div>
-
-      <div style={s.body}>
-
-        {/* PANEL ADMIN */}
-        {showAdmin && (
-          <div style={s.adminCard}>
-            <span style={{ ...s.label, fontSize: 16 }}>⚙️ Panel Administrativo</span>
-
-            {/* Info sheet actual */}
-            <div style={{ marginBottom: 14 }}>
-              <span style={s.label}>Sheet Actual</span>
-              <div style={{ ...s.input, background: "#fff", color: sheetId ? "#1e293b" : "#94A3B8", cursor: "default" }}>
-                {sheetId ? `ID: ...${sheetId.slice(-12)}` : "Sin configuración aún"}
-              </div>
-            </div>
-
-            {!adminUnlocked ? (
-              <>
-                <span style={s.label}>Contraseña Admin</span>
-                <input style={s.input} type="password" placeholder="Contraseña" value={passwordAttempt}
-                  onChange={e => { setPasswordAttempt(e.target.value); setError(""); }}
-                  onKeyDown={e => { if (e.key === "Enter") { if (passwordAttempt === ADMIN_PASSWORD) { setAdminUnlocked(true); setPasswordAttempt(""); } else { setError("Contraseña incorrecta"); setPasswordAttempt(""); } } }} />
-                {error && <div style={s.errBox}>⚠️ {error}</div>}
-                <button style={s.btnPrimary} onClick={() => { if (passwordAttempt === ADMIN_PASSWORD) { setAdminUnlocked(true); setPasswordAttempt(""); } else { setError("Contraseña incorrecta"); setPasswordAttempt(""); } }}>Ingresar</button>
-              </>
-            ) : (
-              <>
-                <span style={s.label}>Cargar nuevo Google Sheet</span>
-                <div style={{ background: "#DBEAFE", borderRadius: 8, padding: "8px 12px", marginBottom: 10, fontSize: 12, color: "#1D4ED8" }}>
-                  ℹ️ El Sheet debe estar en modo <strong>"Cualquier persona con el enlace puede ver"</strong>
-                </div>
-                <textarea style={s.textarea} placeholder="Pega aquí el enlace de Google Sheets" value={newSheetUrl} onChange={e => { setNewSheetUrl(e.target.value); setError(""); }} />
-                {error && <div style={s.errBox}>⚠️ {error}</div>}
-                {sheetLoadErrors.length > 0 && (
-                  <div style={s.warnBox}>
-                    <strong>Advertencias:</strong><br />
-                    {sheetLoadErrors.map((e, i) => <div key={i}>• {e}</div>)}
-                  </div>
-                )}
-                <button style={s.btnPrimary} onClick={handleConfigureSheet}>📥 Cargar Sheet</button>
-              </>
-            )}
-            <button style={s.btnSecondary} onClick={() => { setShowAdmin(false); setAdminUnlocked(false); setPasswordAttempt(""); setError(""); }}>Cerrar Panel</button>
+      /* ── LOADING ── */
+      if (isLoading) return (
+        <div style={{ fontFamily: "'Segoe UI',sans-serif", background: "#F0F4FF", minHeight: "100vh" }}>
+          <div style={{ background: "linear-gradient(135deg,#1D4ED8,#3B82F6)", padding: "18px 20px" }}>
+            <h1 style={{ color: "#fff", fontSize: 20, fontWeight: 700 }}>🔍 Control de Personal</h1>
+            <p style={{ color: "rgba(255,255,255,0.75)", fontSize: 12 }}>Búsqueda por DNI</p>
           </div>
-        )}
-
-        {/* SIN DATOS */}
-        {!data && !isLoading && (
-          <div style={{ ...s.card, textAlign: "center", padding: 32 }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
-            <p style={{ fontWeight: 600, color: "#1e293b" }}>Sin datos cargados</p>
-            <p style={{ color: "#64748B", fontSize: 14 }}>Presiona ⚙️ arriba para configurar tu Google Sheet</p>
+          <div style={{ textAlign: "center", padding: 50 }}>
+            <div className="spinner" />
+            <p style={{ fontWeight: 600, color: "#1e293b" }}>{loadingMsg || "Cargando..."}</p>
+            <p style={{ fontSize: 12, color: "#94A3B8" }}>Conectando con Google Sheets</p>
           </div>
-        )}
+        </div>
+      );
 
-        {/* BUSCADOR */}
-        {data && !showAdmin && (
-          <>
-            <div style={s.card}>
-              <div style={s.searchWrap}>
-                <input style={s.searchInput} type="text" inputMode="numeric"
-                  placeholder="Ingresa DNI (ej: 76305088)" value={searchDNI}
-                  onChange={e => searchByDNI(e.target.value)} />
-                {searchDNI && <button style={s.clearBtn} onClick={() => { setSearchDNI(""); setResults([]); }}>✕</button>}
-              </div>
-              <div style={s.hint}>ℹ️ Si tu DNI empieza con 0, omítelo. Ej: 076305088 → escribir 76305088</div>
-              {lastUpdate && <div style={s.lastUpdate}>Última carga: {lastUpdate}</div>}
-              {sheetLoadErrors.length > 0 && (
-                <div style={{ ...s.warnBox, marginTop: 10 }}>
-                  {sheetLoadErrors.map((e, i) => <div key={i}>⚠️ {e}</div>)}
-                </div>
-              )}
+      /* ── MAIN ── */
+      return (
+        <div style={{ fontFamily: "'Segoe UI',sans-serif", background: "#F0F4FF", minHeight: "100vh", color: "#1e293b" }}>
+
+          {/* HEADER */}
+          <div style={{ background: "linear-gradient(135deg,#1D4ED8,#3B82F6)", padding: "18px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 4px 12px rgba(37,99,235,0.4)" }}>
+            <div>
+              <h1 style={{ color: "#fff", fontSize: 20, fontWeight: 700, margin: 0 }}>🔍 Control de Personal</h1>
+              <p style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, margin: "2px 0 0" }}>Búsqueda por DNI</p>
             </div>
+            <button onClick={() => { setShowAdmin(!showAdmin); setAdminUnlocked(false); setPasswordAttempt(""); setError(""); }}
+              style={{ background: "rgba(255,255,255,0.2)", border: "none", borderRadius: 8, color: "#fff", fontSize: 20, width: 40, height: 40, cursor: "pointer" }}>
+              ⚙️
+            </button>
+          </div>
 
-            {/* RESULTADOS */}
-            {searchDNI && (
-              <div>
-                {results.length > 0 ? (
+          <div style={{ padding: 16 }}>
+
+            {/* PANEL ADMIN */}
+            {showAdmin && (
+              <div style={{ background: "#EFF6FF", borderRadius: 14, padding: 16, marginBottom: 14, border: "1px solid #BFDBFE" }}>
+                <p style={{ fontSize: 16, fontWeight: 700, color: "#1D4ED8", marginBottom: 12 }}>⚙️ Panel Administrativo</p>
+
+                <p style={{ fontSize: 13, fontWeight: 600, color: "#1D4ED8", marginBottom: 4 }}>Sheet Actual</p>
+                <div style={{ padding: "10px 12px", background: "#fff", border: "1.5px solid #BFDBFE", borderRadius: 8, fontSize: 14, color: sheetId ? "#1e293b" : "#94A3B8", marginBottom: 14 }}>
+                  {sheetId ? `ID: ...${sheetId.slice(-16)}` : "Sin configuración aún"}
+                </div>
+
+                {!adminUnlocked ? (
                   <>
-                    <div style={s.countBadge}>{results.length} resultado{results.length !== 1 ? "s" : ""} encontrado{results.length !== 1 ? "s" : ""}</div>
-                    {results.map((r, i) => {
-                      const f = formatRowData(r.rowData);
-                      const b = sheetBadge(r.sheet);
-                      return (
-                        <div key={i} style={{ ...s.resultCard, borderLeftColor: b.color }}>
-                          <span style={s.badge(r.sheet)}>{b.label}</span>
-                          <div style={s.nameRow}>{f.nombre}</div>
-                          <div style={s.grid}>
-                            <div style={s.cell}><span style={s.cellLabel}>DNI</span>{f.dni}</div>
-                            <div style={s.cell}><span style={s.cellLabel}>Teléfono</span>{f.telefono}</div>
-                            <div style={s.cell}><span style={s.cellLabel}>Unidad</span>{f.unidad}</div>
-                            <div style={s.cell}><span style={s.cellLabel}>Consola</span>{f.consola}</div>
-                            <div style={s.cell}><span style={s.cellLabel}>Hora</span>{f.hora}</div>
-                            <div style={s.cell}><span style={s.cellLabel}>Estado</span>{f.estado}</div>
-                          </div>
-                        </div>
-                      );
-                    })}
+                    <p style={{ fontSize: 13, fontWeight: 600, color: "#1D4ED8", marginBottom: 4 }}>Contraseña Admin</p>
+                    <input type="password" placeholder="Contraseña" value={passwordAttempt}
+                      onChange={e => { setPasswordAttempt(e.target.value); setError(""); }}
+                      onKeyDown={e => { if (e.key === "Enter") { if (passwordAttempt === ADMIN_PASSWORD) { setAdminUnlocked(true); setPasswordAttempt(""); } else { setError("Contraseña incorrecta"); setPasswordAttempt(""); } } }}
+                      style={{ width: "100%", padding: "10px 12px", fontSize: 14, border: "1.5px solid #BFDBFE", borderRadius: 8, marginBottom: 10 }} />
+                    {error && <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 8, padding: "10px 12px", color: "#DC2626", fontSize: 13, marginBottom: 10 }}>⚠️ {error}</div>}
+                    <button onClick={() => { if (passwordAttempt === ADMIN_PASSWORD) { setAdminUnlocked(true); setPasswordAttempt(""); } else { setError("Contraseña incorrecta"); setPasswordAttempt(""); } }}
+                      style={{ background: "#2563EB", color: "#fff", border: "none", borderRadius: 10, padding: "12px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer", width: "100%" }}>
+                      Ingresar
+                    </button>
                   </>
                 ) : (
-                  <div style={s.noResult}>
-                    <div style={{ fontSize: 40, marginBottom: 10 }}>🔎</div>
-                    <p style={{ fontWeight: 600 }}>DNI no encontrado</p>
-                    <p style={{ fontSize: 13, color: "#94A3B8" }}>Verifica el número e intenta de nuevo</p>
-                  </div>
+                  <>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: "#1D4ED8", marginBottom: 4 }}>Cargar nuevo Google Sheet</p>
+                    <div style={{ background: "#DBEAFE", borderRadius: 8, padding: "8px 12px", marginBottom: 10, fontSize: 12, color: "#1D4ED8" }}>
+                      ℹ️ El Sheet debe estar en modo <strong>"Cualquier persona con el enlace puede ver"</strong>
+                    </div>
+                    <textarea placeholder="Pega aquí el enlace de Google Sheets" value={newSheetUrl}
+                      onChange={e => { setNewSheetUrl(e.target.value); setError(""); }}
+                      style={{ width: "100%", padding: "10px 12px", fontSize: 13, border: "1.5px solid #BFDBFE", borderRadius: 8, marginBottom: 10, minHeight: 72, resize: "vertical" }} />
+                    {error && <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 8, padding: "10px 12px", color: "#DC2626", fontSize: 13, marginBottom: 10 }}>⚠️ {error}</div>}
+                    {sheetErrors.length > 0 && (
+                      <div style={{ background: "#FFFBEB", border: "1px solid #FCD34D", borderRadius: 8, padding: "10px 12px", marginBottom: 10, color: "#92400E", fontSize: 12 }}>
+                        <strong>Advertencias:</strong>
+                        {sheetErrors.map((e, i) => <div key={i}>• {e}</div>)}
+                      </div>
+                    )}
+                    <button onClick={handleConfigureSheet}
+                      style={{ background: "#2563EB", color: "#fff", border: "none", borderRadius: 10, padding: "12px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer", width: "100%" }}>
+                      📥 Cargar Sheet
+                    </button>
+                  </>
                 )}
+                <button onClick={() => { setShowAdmin(false); setAdminUnlocked(false); setPasswordAttempt(""); setError(""); }}
+                  style={{ background: "#E2E8F0", color: "#475569", border: "none", borderRadius: 10, padding: "11px 20px", fontSize: 14, cursor: "pointer", width: "100%", marginTop: 8 }}>
+                  Cerrar Panel
+                </button>
               </div>
             )}
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
+
+            {/* SIN DATOS */}
+            {!data && !showAdmin && (
+              <div style={{ background: "#fff", borderRadius: 14, padding: 32, textAlign: "center", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
+                <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
+                <p style={{ fontWeight: 600 }}>Sin datos cargados</p>
+                <p style={{ color: "#64748B", fontSize: 14, marginTop: 6 }}>Presiona ⚙️ arriba para configurar tu Google Sheet</p>
+              </div>
+            )}
+
+            {/* BUSCADOR */}
+            {data && !showAdmin && (
+              <>
+                <div style={{ background: "#fff", borderRadius: 14, padding: 16, boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 14 }}>
+                  <div style={{ position: "relative" }}>
+                    <input type="text" inputMode="numeric" placeholder="Ingresa DNI (ej: 76305088)"
+                      value={searchDNI} onChange={e => searchByDNI(e.target.value)}
+                      style={{ width: "100%", padding: "14px 44px 14px 16px", fontSize: 17, border: "2px solid #BFDBFE", borderRadius: 10, background: "#F8FAFF", color: "#1e293b" }} />
+                    {searchDNI && (
+                      <button onClick={() => { setSearchDNI(""); setResults([]); }}
+                        style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "#E2E8F0", border: "none", borderRadius: "50%", width: 26, height: 26, cursor: "pointer", fontSize: 13, color: "#64748B" }}>
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#64748B", marginTop: 8, padding: "8px 12px", background: "#F0F9FF", borderRadius: 8, borderLeft: "3px solid #3B82F6" }}>
+                    ℹ️ Si tu DNI empieza con 0, omítelo. Ej: 076305088 → escribir 76305088
+                  </div>
+                  {lastUpdate && <div style={{ fontSize: 11, color: "#94A3B8", textAlign: "right", marginTop: 6 }}>Última carga: {lastUpdate}</div>}
+                  {sheetErrors.length > 0 && (
+                    <div style={{ background: "#FFFBEB", borderRadius: 8, padding: "8px 12px", marginTop: 8, color: "#92400E", fontSize: 12 }}>
+                      {sheetErrors.map((e, i) => <div key={i}>⚠️ {e}</div>)}
+                    </div>
+                  )}
+                </div>
+
+                {/* RESULTADOS */}
+                {searchDNI && (
+                  results.length > 0 ? (
+                    <>
+                      <div style={{ background: "#EFF6FF", color: "#1D4ED8", borderRadius: 20, padding: "4px 12px", fontSize: 13, fontWeight: 600, display: "inline-block", marginBottom: 12 }}>
+                        {results.length} resultado{results.length !== 1 ? "s" : ""} encontrado{results.length !== 1 ? "s" : ""}
+                      </div>
+                      {results.map((r, i) => {
+                        const f = formatRowData(r.rowData);
+                        const b = sheetBadge(r.sheet);
+                        return (
+                          <div key={i} style={{ background: "#fff", borderRadius: 12, padding: 14, boxShadow: "0 2px 8px rgba(0,0,0,0.07)", marginBottom: 12, borderLeft: `4px solid ${b.color}` }}>
+                            <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: b.bg, color: b.color, marginBottom: 8 }}>
+                              {b.label}
+                            </span>
+                            <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 6 }}>{f.nombre}</div>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 12px" }}>
+                              {[["DNI", f.dni], ["Teléfono", f.telefono], ["Unidad", f.unidad], ["Consola", f.consola], ["Hora", f.hora], ["Estado", f.estado]].map(([lbl, val]) => (
+                                <div key={lbl} style={{ fontSize: 13 }}>
+                                  <span style={{ color: "#94A3B8", fontSize: 11, display: "block" }}>{lbl}</span>
+                                  {val}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </>
+                  ) : (
+                    <div style={{ textAlign: "center", padding: 30, color: "#94A3B8" }}>
+                      <div style={{ fontSize: 40, marginBottom: 10 }}>🔎</div>
+                      <p style={{ fontWeight: 600 }}>DNI no encontrado</p>
+                      <p style={{ fontSize: 13, marginTop: 4 }}>Verifica el número e intenta de nuevo</p>
+                    </div>
+                  )
+                )}
+              </>
+            )}
+
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
