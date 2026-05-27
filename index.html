@@ -4,9 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Buscador de Personal</title>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/papaparse/5.4.1/papaparse.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;600;700&display=swap');
@@ -20,17 +17,114 @@
         body {
             font-family: 'Outfit', -apple-system, sans-serif;
             background: #f9fafb;
+            color: #111827;
         }
         
-        input:focus, textarea:focus {
+        .container {
+            max-width: 100%;
+            padding: 1rem;
+            padding-bottom: 3rem;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 2rem 1rem;
+            background: linear-gradient(135deg, #e6f1fb 0%, #ffffff 100%);
+            border-radius: 12px;
+            border: 1px solid #d1d5db;
+            margin-bottom: 1.5rem;
+        }
+        
+        .header-content h1 {
+            font-size: clamp(1.5rem, 5vw, 2rem);
+            font-weight: 700;
+            margin: 0 0 0.5rem 0;
+            color: #1e40af;
+        }
+        
+        .header-content p {
+            font-size: 0.9rem;
+            color: #6b7280;
+            margin: 0;
+        }
+        
+        .admin-btn {
+            width: 40px;
+            height: 40px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.2rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .admin-btn:hover {
+            background: #2563eb;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        .modal {
+            background: #f0f9ff;
+            border: 2px solid #3b82f6;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .modal h2 {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #1e40af;
+            margin-bottom: 1rem;
+        }
+        
+        .modal input,
+        .modal textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-family: 'Outfit', sans-serif;
+            margin-bottom: 1rem;
+            box-sizing: border-box;
+        }
+        
+        .modal input:focus,
+        .modal textarea:focus {
             outline: none;
-            border-color: #3b82f6 !important;
+            border-color: #3b82f6;
             box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
         
-        button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
+        .modal textarea {
+            font-family: monospace;
+            min-height: 80px;
+            resize: vertical;
+        }
+        
+        .button-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+        
+        button {
+            padding: 10px 12px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
         }
         
         button:hover:not(:disabled) {
@@ -38,401 +132,437 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         
-        code {
-            background: #f3f4f6;
-            padding: 2px 6px;
-            border-radius: 4px;
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+            grid-column: 1 / -1;
+        }
+        
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+        
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: #d1d5db;
+            color: #111827;
+        }
+        
+        .btn-refresh {
+            background: #10b981;
+            color: white;
+            grid-column: 1 / -1;
+            width: 100%;
+            padding: 12px;
+        }
+        
+        .error {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            border: 1px solid #fecaca;
+        }
+        
+        .info {
+            background: #dbeafe;
+            border: 1px solid #93c5fd;
+            border-left: 3px solid #3b82f6;
+            padding: 10px 12px;
             font-size: 0.9rem;
             color: #1e40af;
-            font-family: monospace;
+            border-radius: 6px;
+            line-height: 1.4;
+            margin-bottom: 1rem;
+        }
+        
+        .setup-message {
+            background: white;
+            border: 1px solid #d1d5db;
+            border-radius: 12px;
+            padding: 2rem;
+            text-align: center;
+        }
+        
+        .setup-message h2 {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #111827;
+            margin-bottom: 1rem;
+        }
+        
+        .search-section {
+            margin-bottom: 2rem;
+        }
+        
+        .search-input {
+            width: 100%;
+            padding: 12px 16px 12px 40px;
+            font-size: 1.1rem;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            box-sizing: border-box;
+            position: relative;
+            margin-bottom: 1rem;
+        }
+        
+        .search-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .results-section {
+            margin-top: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .result-card {
+            background: white;
+            border: 1px solid #d1d5db;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .sheet-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .badge-programacion {
+            background: #bfdbfe;
+            color: #1e40af;
+        }
+        
+        .badge-reten {
+            background: #fed7aa;
+            color: #92400e;
+        }
+        
+        .badge-observados {
+            background: #a7f3d0;
+            color: #065f46;
+        }
+        
+        .person-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: #111827;
+        }
+        
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            font-size: 0.9rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+        
+        .detail-label {
+            color: #6b7280;
+            font-weight: 600;
+        }
+        
+        .detail-value {
+            color: #111827;
+            font-weight: 500;
+            text-align: right;
+            word-break: break-word;
+            max-width: 60%;
+        }
+        
+        .detail-value.highlight {
+            color: #3b82f6;
+        }
+        
+        .no-results {
+            text-align: center;
+            padding: 2rem;
+            color: #6b7280;
+            background: #f9fafb;
+            border-radius: 8px;
         }
     </style>
 </head>
 <body>
-    <div id="root"></div>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-content">
+                <h1>🔍 Control de Personal</h1>
+                <p>Búsqueda por DNI</p>
+            </div>
+            <button class="admin-btn" onclick="toggleAdminPanel()">⚙️</button>
+        </div>
 
-    <script type="text/babel">
-        const { useState, useEffect } = React;
+        <!-- Admin Panel -->
+        <div id="adminPanel" class="modal hidden">
+            <h2>Panel Administrativo</h2>
+            
+            <div style="margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid #bfdbfe;">
+                <h3 style="font-size: 1rem; font-weight: 600; color: #1e40af; margin-bottom: 1rem;">Sheet Actual</h3>
+                <div id="currentSheet" style="background: white; padding: 1rem; border-radius: 8px; border: 1px solid #dbeafe;">
+                    <p>Sin configuración aún</p>
+                </div>
+            </div>
 
-        function BuscadorPersonal() {
-            const [sheetId, setSheetId] = useState('');
-            const [newSheetUrl, setNewSheetUrl] = useState('');
-            const [data, setData] = useState(null);
-            const [searchDNI, setSearchDNI] = useState('');
-            const [results, setResults] = useState([]);
-            const [isLoading, setIsLoading] = useState(false);
-            const [error, setError] = useState('');
-            const [lastUpdate, setLastUpdate] = useState('');
-            const [showAdminPanel, setShowAdminPanel] = useState(false);
-            const [adminPassword] = useState('admin123');
-            const [passwordAttempt, setPasswordAttempt] = useState('');
-            const [adminUnlocked, setAdminUnlocked] = useState(false);
+            <div>
+                <h3 style="font-size: 1rem; font-weight: 600; color: #1e40af; margin-bottom: 1rem;">Cargar nuevo Google Sheet</h3>
+                <textarea id="sheetUrl" placeholder="Pega aquí el enlace del Google Sheet (ej: https://docs.google.com/spreadsheets/d/...)"></textarea>
+                <button class="btn-primary" onclick="loadSheet()">📥 Cargar Sheet</button>
+            </div>
 
-            useEffect(() => {
-                loadFromStorage();
-            }, []);
+            <div id="adminError" class="error hidden"></div>
 
-            const loadFromStorage = () => {
+            <button class="btn-secondary" style="width: 100%; margin-top: 1rem;" onclick="toggleAdminPanel()">Cerrar Panel</button>
+        </div>
+
+        <!-- Setup Message -->
+        <div id="setupMessage" class="setup-message">
+            <h2>⏳ Esperando configuración</h2>
+            <p>El administrador debe configurar un Google Sheet para comenzar.</p>
+            <p style="color: #6b7280; font-size: 0.85rem; margin-top: 1rem;">Si eres administrador, haz click en el botón ⚙️ en la esquina superior derecha.</p>
+        </div>
+
+        <!-- Search Section -->
+        <div id="searchSection" class="search-section hidden">
+            <input type="text" class="search-input" id="searchInput" placeholder="Ingresa DNI (ej: 76305088)" inputMode="numeric">
+            <div class="info">ℹ️ Si tu DNI comienza con 0, omítelo. Ej: 076305088 → escribir 76305088</div>
+            <div id="lastUpdate" style="font-size: 0.8rem; color: #6b7280; text-align: center;"></div>
+        </div>
+
+        <!-- Results Section -->
+        <div id="resultsSection" class="results-section hidden"></div>
+
+        <!-- Refresh Button -->
+        <div id="refreshSection" class="hidden" style="margin-bottom: 1rem;">
+            <button class="btn-refresh" onclick="refreshData()">🔄 Refrescar datos</button>
+        </div>
+    </div>
+
+    <script>
+        let sheetData = null;
+        let currentSheetId = null;
+
+        // Cargar configuración al iniciar
+        window.addEventListener('DOMContentLoaded', function() {
+            loadStoredConfig();
+            setupSearchListener();
+        });
+
+        function loadStoredConfig() {
+            const stored = localStorage.getItem('buscador-sheet-config');
+            if (stored) {
                 try {
-                    const stored = localStorage.getItem('sheet-id-config');
-                    if (stored) {
-                        const parsed = JSON.parse(stored);
-                        setSheetId(parsed.sheetId);
-                        if (parsed.sheetId) {
-                            loadGoogleSheet(parsed.sheetId);
-                        }
-                    }
-                } catch (error) {
-                    console.log('No hay configuración previa');
+                    const config = JSON.parse(stored);
+                    currentSheetId = config.sheetId;
+                    document.getElementById('currentSheet').innerHTML = `<p>ID: <code>${currentSheetId}</code></p><p style="margin-top: 0.5rem;">Última carga: ${config.timestamp}</p>`;
+                    loadSheetData(currentSheetId);
+                } catch (e) {
+                    console.error('Error cargando configuración:', e);
                 }
-            };
+            }
+        }
 
-            const saveToStorage = (id) => {
-                try {
-                    localStorage.setItem('sheet-id-config', JSON.stringify({
-                        sheetId: id,
-                        timestamp: new Date().toLocaleString('es-PE')
-                    }));
-                } catch (error) {
-                    console.error('Error guardando:', error);
-                }
-            };
+        function toggleAdminPanel() {
+            const panel = document.getElementById('adminPanel');
+            panel.classList.toggle('hidden');
+        }
 
-            const extractSheetId = (url) => {
-                const match = url.match(/\/spreadsheets\/d\/([^\/]+)/);
-                return match ? match[1] : null;
-            };
+        function extractSheetId(url) {
+            const match = url.match(/\/spreadsheets\/d\/([^\/]+)/);
+            return match ? match[1] : null;
+        }
 
-            const loadGoogleSheet = async (id) => {
-                setIsLoading(true);
-                setError('');
+        function loadSheet() {
+            const url = document.getElementById('sheetUrl').value.trim();
+            const errorDiv = document.getElementById('adminError');
+            
+            if (!url) {
+                errorDiv.classList.remove('hidden');
+                errorDiv.textContent = 'Por favor pega un enlace válido';
+                return;
+            }
+
+            const id = extractSheetId(url);
+            if (!id) {
+                errorDiv.classList.remove('hidden');
+                errorDiv.textContent = 'Enlace de Google Sheet inválido';
+                return;
+            }
+
+            currentSheetId = id;
+            document.getElementById('sheetUrl').value = '';
+            errorDiv.classList.add('hidden');
+            
+            // Guardar configuración
+            localStorage.setItem('buscador-sheet-config', JSON.stringify({
+                sheetId: id,
+                timestamp: new Date().toLocaleString('es-PE')
+            }));
+
+            loadSheetData(id);
+        }
+
+        function loadSheetData(id) {
+            const sheetNames = ['PROGRAMACION', 'RETEN EXCEDENTE', 'OBSERVADOS'];
+            const gidValues = [0, 1, 2];
+            sheetData = {};
+            let loadedCount = 0;
+
+            sheetNames.forEach((name, index) => {
+                const gid = gidValues[index];
+                const csvUrl = `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}`;
                 
-                try {
-                    const sheetNames = ['PROGRAMACION', 'RETEN EXCEDENTE', 'OBSERVADOS'];
-                    const gidValues = [0, 1, 2];
-                    const processedData = {};
-                    let successCount = 0;
-
-                    for (let i = 0; i < sheetNames.length; i++) {
-                        const sheetName = sheetNames[i];
-                        const gid = gidValues[i];
-                        const csvUrl = `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}`;
-                        
-                        try {
-                            const response = await fetch(csvUrl);
-                            if (!response.ok) throw new Error(`Error cargando ${sheetName}`);
-                            
-                            const csvText = await response.text();
-                            Papa.parse(csvText, {
-                                header: false,
-                                skipEmptyLines: true,
-                                complete: (parseResult) => {
-                                    processedData[sheetName] = parseResult.data;
-                                    successCount++;
+                fetch(csvUrl)
+                    .then(response => response.text())
+                    .then(csv => {
+                        Papa.parse(csv, {
+                            header: false,
+                            skipEmptyLines: true,
+                            complete: (results) => {
+                                sheetData[name] = results.data;
+                                loadedCount++;
+                                
+                                if (loadedCount === sheetNames.length) {
+                                    showSearchInterface();
+                                    toggleAdminPanel();
+                                    updateLastUpdate();
                                 }
-                            });
-                        } catch (err) {
-                            console.error(`Error en ${sheetName}:`, err);
-                        }
-                    }
-
-                    await new Promise(resolve => setTimeout(resolve, 800));
-
-                    if (successCount === 0) {
-                        throw new Error('No se pudieron cargar las hojas. Verifica el ID del Sheet.');
-                    }
-
-                    setData(processedData);
-                    setSearchDNI('');
-                    setResults([]);
-                    setLastUpdate(new Date().toLocaleString('es-PE'));
-                    setShowAdminPanel(false);
-                    setAdminUnlocked(false);
-                    setPasswordAttempt('');
-                } catch (err) {
-                    setError(err.message);
-                    setData(null);
-                } finally {
-                    setIsLoading(false);
-                }
-            };
-
-            const handleConfigureSheet = () => {
-                if (!newSheetUrl.trim()) {
-                    setError('Por favor pega un enlace válido');
-                    return;
-                }
-                const id = extractSheetId(newSheetUrl);
-                if (!id) {
-                    setError('Enlace de Google Sheet inválido');
-                    return;
-                }
-                setSheetId(id);
-                saveToStorage(id);
-                loadGoogleSheet(id);
-                setNewSheetUrl('');
-            };
-
-            const handleAdminLogin = () => {
-                if (passwordAttempt === adminPassword) {
-                    setAdminUnlocked(true);
-                    setPasswordAttempt('');
-                } else {
-                    setError('Contraseña incorrecta');
-                    setPasswordAttempt('');
-                }
-            };
-
-            const searchByDNI = (dni) => {
-                setSearchDNI(dni);
-                
-                if (!data || !dni.trim()) {
-                    setResults([]);
-                    return;
-                }
-
-                const searchTerm = dni.trim();
-                const foundResults = [];
-
-                Object.entries(data).forEach(([sheetName, rows]) => {
-                    rows.forEach((row, index) => {
-                        const dniValue = String(row[5] || '').trim();
-                        if (dniValue && dniValue.includes(searchTerm)) {
-                            foundResults.push({
-                                sheet: sheetName,
-                                rowIndex: index,
-                                rowData: row
-                            });
+                            }
+                        });
+                    })
+                    .catch(error => {
+                        console.error(`Error cargando ${name}:`, error);
+                        loadedCount++;
+                        if (loadedCount === sheetNames.length && loadedCount > 0) {
+                            showSearchInterface();
                         }
                     });
+            });
+        }
+
+        function showSearchInterface() {
+            document.getElementById('setupMessage').classList.add('hidden');
+            document.getElementById('searchSection').classList.remove('hidden');
+            document.getElementById('refreshSection').classList.remove('hidden');
+        }
+
+        function setupSearchListener() {
+            const input = document.getElementById('searchInput');
+            if (input) {
+                input.addEventListener('input', (e) => {
+                    search(e.target.value);
                 });
+            }
+        }
 
-                setResults(foundResults);
-            };
+        function search(dni) {
+            if (!sheetData) return;
 
-            const formatRowData = (row) => {
-                return {
-                    nombre: row[4] || '-',
-                    dni: row[5] || '-',
-                    telefono: row[6] || '-',
-                    unidad: row[3] || '-',
-                    consola: row[0] || '-',
-                    hora: row[2] || '-',
-                    estado: row[10] || '-'
-                };
-            };
+            const resultsSection = document.getElementById('resultsSection');
+            
+            if (!dni.trim()) {
+                resultsSection.innerHTML = '';
+                resultsSection.classList.add('hidden');
+                return;
+            }
 
-            const getBadgeStyle = (sheet) => {
-                if (sheet === 'RETEN EXCEDENTE') {
-                    return { background: '#fed7aa', color: '#92400e' };
-                } else if (sheet === 'OBSERVADOS') {
-                    return { background: '#a7f3d0', color: '#065f46' };
-                }
-                return { background: '#bfdbfe', color: '#1e40af' };
-            };
+            const results = [];
+            Object.entries(sheetData).forEach(([sheetName, rows]) => {
+                rows.forEach(row => {
+                    const dniValue = String(row[5] || '').trim();
+                    if (dniValue.includes(dni.trim())) {
+                        results.push({ sheet: sheetName, row });
+                    }
+                });
+            });
 
-            return (
-                <div style={{maxWidth: '100%', minHeight: '100vh', padding: '1rem', paddingBottom: '3rem', background: '#f9fafb'}}>
-                    {/* Header */}
-                    <div style={{marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '2rem 1rem', background: 'linear-gradient(135deg, #e6f1fb 0%, #ffffff 100%)', borderRadius: '12px', border: '1px solid #d1d5db'}}>
-                        <div>
-                            <h1 style={{fontSize: 'clamp(1.5rem, 5vw, 2rem)', fontWeight: '700', margin: '0 0 0.5rem 0', color: '#1e40af'}}>🔍 Control de Personal</h1>
-                            <p style={{fontSize: '0.9rem', color: '#6b7280', margin: '0'}}>Búsqueda por DNI</p>
+            if (results.length === 0) {
+                resultsSection.innerHTML = `<div class="no-results">❌ No se encontraron resultados para: ${dni}</div>`;
+                resultsSection.classList.remove('hidden');
+                return;
+            }
+
+            let html = `<div style="font-size: 0.9rem; color: #374151; margin-bottom: 1rem; padding: 8px 12px; background: #f3f4f6; border-radius: 8px; text-align: center;">${results.length} resultado${results.length !== 1 ? 's' : ''} encontrado${results.length !== 1 ? 's' : ''}</div>`;
+
+            results.forEach(result => {
+                const row = result.row;
+                const badgeClass = result.sheet === 'RETEN EXCEDENTE' ? 'badge-reten' : 
+                                   result.sheet === 'OBSERVADOS' ? 'badge-observados' : 'badge-programacion';
+                
+                html += `
+                    <div class="result-card">
+                        <span class="sheet-badge ${badgeClass}">${result.sheet}</span>
+                        <div class="person-name">${row[4] || '-'}</div>
+                        <div class="detail-row">
+                            <span class="detail-label">DNI</span>
+                            <span class="detail-value highlight">${row[5] || '-'}</span>
                         </div>
-                        {data && (
-                            <button 
-                                onClick={() => {
-                                    setShowAdminPanel(!showAdminPanel);
-                                    setAdminUnlocked(false);
-                                    setPasswordAttempt('');
-                                    setError('');
-                                }}
-                                style={{width: '40px', height: '40px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontSize: '1.2rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'}}
-                            >
-                                ⚙️
-                            </button>
-                        )}
+                        <div class="detail-row">
+                            <span class="detail-label">Teléfono</span>
+                            <span class="detail-value">${row[6] || '-'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Unidad</span>
+                            <span class="detail-value">${row[3] || '-'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Consola</span>
+                            <span class="detail-value">${row[0] || '-'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Hora</span>
+                            <span class="detail-value">${row[2] || '-'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Estado</span>
+                            <span class="detail-value">${row[10] || '-'}</span>
+                        </div>
                     </div>
+                `;
+            });
 
-                    {/* Admin Panel */}
-                    {showAdminPanel && !adminUnlocked && (
-                        <div style={{background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '12px', padding: '1.5rem', marginBottom: '1.5rem'}}>
-                            <h2 style={{fontSize: '1.2rem', fontWeight: '600', color: '#1e40af', margin: '0 0 0.5rem 0'}}>Acceso Admin</h2>
-                            <p style={{fontSize: '0.9rem', color: '#6b7280', marginBottom: '1rem'}}>Ingresa contraseña para cambiar el Google Sheet</p>
-                            <input
-                                type="password"
-                                placeholder="Contraseña"
-                                value={passwordAttempt}
-                                onChange={(e) => {
-                                    setPasswordAttempt(e.target.value);
-                                    setError('');
-                                }}
-                                onKeyPress={(e) => e.key === 'Enter' && handleAdminLogin()}
-                                style={{width: '100%', padding: '12px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '1rem', marginBottom: '1rem', boxSizing: 'border-box'}}
-                            />
-                            <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem'}}>
-                                <button onClick={handleAdminLogin} style={{padding: '10px', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600'}}>Entrar</button>
-                                <button onClick={() => setShowAdminPanel(false)} style={{padding: '10px', background: '#d1d5db', color: '#111827', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600'}}>Cancelar</button>
-                            </div>
-                            {error && <div style={{background: '#fee2e2', color: '#991b1b', padding: '12px', borderRadius: '8px', marginTop: '1rem', fontSize: '0.9rem', border: '1px solid #fecaca'}}>{error}</div>}
-                        </div>
-                    )}
-
-                    {showAdminPanel && adminUnlocked && (
-                        <div style={{background: '#f0f9ff', border: '2px solid #3b82f6', borderRadius: '12px', padding: '1.5rem', marginBottom: '1.5rem'}}>
-                            <h2 style={{fontSize: '1.2rem', fontWeight: '600', color: '#1e40af', margin: '0 0 0.5rem 0'}}>Panel Administrativo</h2>
-                            
-                            <div style={{marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid #bfdbfe'}}>
-                                <h3 style={{fontSize: '1rem', fontWeight: '600', color: '#1e40af', margin: '0 0 1rem 0'}}>Sheet Actual</h3>
-                                {sheetId && (
-                                    <div style={{background: 'white', padding: '1rem', borderRadius: '8px', border: '1px solid #dbeafe'}}>
-                                        <p>ID: <code>{sheetId}</code></p>
-                                        {lastUpdate && <p style={{marginTop: '0.5rem'}}>Última carga: {lastUpdate}</p>}
-                                    </div>
-                                )}
-                            </div>
-
-                            <div>
-                                <h3 style={{fontSize: '1rem', fontWeight: '600', color: '#1e40af', margin: '0 0 1rem 0'}}>Cargar nuevo Google Sheet</h3>
-                                <textarea
-                                    placeholder="Pega aquí el enlace del Google Sheet"
-                                    value={newSheetUrl}
-                                    onChange={(e) => {
-                                        setNewSheetUrl(e.target.value);
-                                        setError('');
-                                    }}
-                                    style={{width: '100%', padding: '12px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '14px', fontFamily: 'monospace', minHeight: '80px', boxSizing: 'border-box', marginBottom: '1rem'}}
-                                />
-                                <button 
-                                    onClick={handleConfigureSheet}
-                                    disabled={isLoading}
-                                    style={{width: '100%', padding: '12px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontSize: '1rem', fontWeight: '600', cursor: 'pointer', marginBottom: '1rem'}}
-                                >
-                                    {isLoading ? '⏳ Cargando...' : '📥 Cargar Sheet'}
-                                </button>
-                            </div>
-
-                            {error && <div style={{background: '#fee2e2', color: '#991b1b', padding: '12px', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.9rem', border: '1px solid #fecaca'}}>{error}</div>}
-
-                            <button 
-                                onClick={() => {
-                                    setShowAdminPanel(false);
-                                    setAdminUnlocked(false);
-                                    setError('');
-                                }}
-                                style={{width: '100%', padding: '12px', background: '#6b7280', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600'}}
-                            >
-                                Cerrar Panel
-                            </button>
-                        </div>
-                    )}
-
-                    {/* Setup Message */}
-                    {!data && !showAdminPanel && (
-                        <div style={{padding: '2rem 1rem', background: 'white', border: '1px solid #d1d5db', borderRadius: '12px', padding: '2rem', textAlign: 'center'}}>
-                            <h2 style={{fontSize: '1.2rem', fontWeight: '600', color: '#111827', marginBottom: '1rem'}}>⏳ Esperando configuración</h2>
-                            <p style={{color: '#374151', lineHeight: '1.6'}}>El administrador debe configurar un Google Sheet para comenzar.</p>
-                            <p style={{color: '#6b7280', fontSize: '0.85rem', marginTop: '1rem'}}>Si eres administrador, haz click en el botón ⚙️ en la esquina superior derecha.</p>
-                        </div>
-                    )}
-
-                    {/* Search Section */}
-                    {data && !showAdminPanel && (
-                        <>
-                            <div style={{marginBottom: '2rem'}}>
-                                <div style={{position: 'relative', marginBottom: '1rem'}}>
-                                    <input
-                                        type="text"
-                                        placeholder="Ingresa DNI (ej: 76305088)"
-                                        value={searchDNI}
-                                        onChange={(e) => searchByDNI(e.target.value)}
-                                        inputMode="numeric"
-                                        style={{width: '100%', padding: '12px 16px 12px 40px', fontSize: '1.1rem', border: '1px solid #d1d5db', borderRadius: '8px', boxSizing: 'border-box'}}
-                                    />
-                                    {searchDNI && (
-                                        <button 
-                                            onClick={() => {
-                                                setSearchDNI('');
-                                                setResults([]);
-                                            }}
-                                            style={{position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: '#e5e7eb', border: 'none', width: '28px', height: '28px', borderRadius: '50%', cursor: 'pointer', fontSize: '1.2rem'}}
-                                        >
-                                            ✕
-                                        </button>
-                                    )}
-                                </div>
-                                <div style={{background: '#dbeafe', border: '1px solid #93c5fd', borderLeft: '3px solid #3b82f6', padding: '10px 12px', fontSize: '0.9rem', color: '#1e40af', borderRadius: '6px', lineHeight: '1.4'}}>
-                                    ℹ️ Si tu DNI comienza con 0, omítelo. Ej: 076305088 → escribir 76305088
-                                </div>
-                                {lastUpdate && <div style={{fontSize: '0.8rem', color: '#6b7280', marginTop: '0.5rem', textAlign: 'center'}}>Última carga: {lastUpdate}</div>}
-                            </div>
-
-                            {searchDNI && (
-                                <div style={{marginTop: '2rem', marginBottom: '2rem'}}>
-                                    {results.length > 0 ? (
-                                        <>
-                                            <div style={{fontSize: '0.9rem', color: '#374151', marginBottom: '1rem', padding: '8px 12px', background: '#f3f4f6', borderRadius: '8px', textAlign: 'center'}}>
-                                                {results.length} resultado{results.length !== 1 ? 's' : ''} encontrado{results.length !== 1 ? 's' : ''}
-                                            </div>
-                                            {results.map((result, idx) => {
-                                                const formatted = formatRowData(result.rowData);
-                                                const badgeStyle = getBadgeStyle(result.sheet);
-                                                return (
-                                                    <div key={idx} style={{background: '#ffffff', border: '1px solid #d1d5db', borderRadius: '12px', padding: '1.5rem', marginBottom: '1rem'}}>
-                                                        <span style={{display: 'inline-block', padding: '4px 10px', fontSize: '0.75rem', fontWeight: '600', borderRadius: '6px', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.5px', ...badgeStyle}}>
-                                                            {result.sheet}
-                                                        </span>
-                                                        
-                                                        <div style={{fontSize: '1.1rem', fontWeight: '600', marginBottom: '1rem', color: '#111827', lineHeight: '1.3'}}>
-                                                            {formatted.nombre}
-                                                        </div>
-                                                        
-                                                        <div>
-                                                            <DetailRow label="DNI" value={formatted.dni} highlight={true} isLast={false} />
-                                                            <DetailRow label="Teléfono" value={formatted.telefono} highlight={false} isLast={false} />
-                                                            <DetailRow label="Unidad" value={formatted.unidad} highlight={false} isLast={false} />
-                                                            <DetailRow label="Consola" value={formatted.consola} highlight={false} isLast={false} />
-                                                            <DetailRow label="Hora" value={formatted.hora} highlight={false} isLast={false} />
-                                                            <DetailRow label="Estado" value={formatted.estado} highlight={false} isLast={true} />
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </>
-                                    ) : (
-                                        <div style={{textAlign: 'center', padding: '2rem', color: '#6b7280', background: '#f9fafb', borderRadius: '8px'}}>
-                                            ❌ No se encontraron resultados para: {searchDNI}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            <button 
-                                onClick={() => sheetId && loadGoogleSheet(sheetId)}
-                                disabled={isLoading}
-                                style={{width: '100%', padding: '12px', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', fontSize: '1rem', fontWeight: '600', cursor: 'pointer'}}
-                            >
-                                🔄 Refrescar datos
-                            </button>
-                        </>
-                    )}
-                </div>
-            );
+            resultsSection.innerHTML = html;
+            resultsSection.classList.remove('hidden');
         }
 
-        function DetailRow({ label, value, highlight = false, isLast = false }) {
-            return (
-                <div style={{display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: '0.9rem', borderBottom: isLast ? 'none' : '1px solid #e5e7eb'}}>
-                    <span style={{color: '#6b7280', fontWeight: '600'}}>{label}</span>
-                    <span style={{color: highlight ? '#3b82f6' : '#111827', fontWeight: '500', textAlign: 'right', wordBreak: 'break-word', maxWidth: '60%'}}>
-                        {value}
-                    </span>
-                </div>
-            );
+        function refreshData() {
+            if (currentSheetId) {
+                loadSheetData(currentSheetId);
+            }
         }
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<BuscadorPersonal />);
+        function updateLastUpdate() {
+            const stored = localStorage.getItem('buscador-sheet-config');
+            if (stored) {
+                const config = JSON.parse(stored);
+                document.getElementById('lastUpdate').textContent = `Última carga: ${config.timestamp}`;
+            }
+        }
     </script>
 </body>
 </html>
