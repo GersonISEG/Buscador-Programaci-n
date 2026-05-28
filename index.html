@@ -164,7 +164,9 @@
       const found = [];
       Object.entries(data).forEach(([sheet, rows]) => {
         rows.forEach(row => {
-          if (String(row[5] || "").toLowerCase().includes(term)) found.push({ sheet, row });
+          const matchDni   = String(row[5] || "").toLowerCase().includes(term);
+          const matchTorre = String(row[3] || "").toLowerCase().includes(term);
+          if (matchDni || matchTorre) found.push({ sheet, row });
         });
       });
       setResults(found);
@@ -297,7 +299,7 @@
             <>
               <div style={{background:"#fff",borderRadius:14,padding:16,boxShadow:"0 2px 12px rgba(0,0,0,0.06)",marginBottom:14}}>
                 <div style={{position:"relative"}}>
-                  <input type="text" inputMode="numeric" placeholder="Ingresa DNI (ej: 76305088)"
+                  <input type="text" inputMode="numeric" placeholder="Buscar por DNI o Torre..."
                     value={dni} onChange={e=>search(e.target.value)}
                     style={{width:"100%",padding:"14px 44px 14px 16px",fontSize:17,border:"2px solid #BFDBFE",borderRadius:10,background:"#F8FAFF",color:"#1e293b"}}/>
                   {dni && (
@@ -308,7 +310,7 @@
                   )}
                 </div>
                 <div style={{fontSize:12,color:"#64748B",marginTop:8,padding:"8px 12px",background:"#F0F9FF",borderRadius:8,borderLeft:"3px solid #3B82F6"}}>
-                  ℹ️ Si tu DNI empieza con 0, omítelo. Ej: 076305088 → escribir 76305088
+                  ℹ️ Puedes buscar por <strong>DNI</strong> o por <strong>Torre</strong>. Si el DNI empieza con 0, omítelo.
                 </div>
                 {lastUpdate && <div style={{fontSize:11,color:"#94A3B8",textAlign:"right",marginTop:6}}>Última carga: {lastUpdate}</div>}
                 {sheetErrs.length > 0 && (
