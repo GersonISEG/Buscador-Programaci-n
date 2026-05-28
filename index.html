@@ -49,6 +49,7 @@
       nombre:   row[4]  || "-",
       dni:      row[5]  || "-",
       telefono: row[6]  || "-",
+      motivo:   row[8]  || "-",
       estado:   row[10] || "-",
     };
   }
@@ -344,6 +345,12 @@
                               </div>
                             ))}
                           </div>
+                          {f.motivo && f.motivo !== "-" && (
+                            <div style={{marginTop:8,padding:"8px 10px",background:"#FFFBEB",borderRadius:8,borderLeft:"3px solid #F59E0B"}}>
+                              <span style={{color:"#94A3B8",fontSize:11,display:"block"}}>Motivo</span>
+                              <span style={{fontSize:13,color:"#92400E"}}>{f.motivo}</span>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
