@@ -12,56 +12,51 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Segoe UI', sans-serif; background: #F0F4FF; min-height: 100vh; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .spinner {
-      width: 36px; height: 36px;
-      border: 4px solid #BFDBFE;
-      border-top: 4px solid #2563EB;
-      border-radius: 50%;
-      animation: spin 0.9s linear infinite;
-      margin: 0 auto 14px;
-    }
-    input:focus, textarea:focus { border-color: #2563EB !important; outline: none; }
+    .spinner { width:36px; height:36px; border:4px solid #BFDBFE; border-top:4px solid #2563EB; border-radius:50%; animation:spin 0.9s linear infinite; margin:0 auto 14px; }
+    input:focus, textarea:focus { border-color:#2563EB !important; outline:none; }
   </style>
 </head>
 <body>
   <div id="root"></div>
-
   <script type="text/babel">
     const { useState, useEffect } = React;
 
-    const ADMIN_PASSWORD = "admin123";
-    const SHEET_NAMES = ["PROGRAMACION", "RETEN EXCEDENTE", "OBSERVADOS"];
+    const ADMIN_PASSWORD  = "admin123";
+    const SHEET_NAMES     = ["PROGRAMACION", "RETEN EXCEDENTE", "OBSERVADOS"];
+    const GITHUB_USER     = "GersonISEG";
+    const GITHUB_REPO     = "Buscador-Programaci%C3%B3n";
+    const CONFIG_FILE     = "config.json";
+    const RAW_CONFIG_URL  = `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/main/${CONFIG_FILE}`;
+    const API_CONFIG_URL  = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${CONFIG_FILE}`;
 
-    // ✅ ID del Google Sheet por defecto — todos los usuarios cargarán esto al abrir la app
-    const DEFAULT_SHEET_ID = "1IPwiAiUlsC8SrTQNQhITIRz33fGsuDgstApA0--2yRs";
-
-    // Storage simple usando localStorage (sin window.storage de Claude)
-    const storage = {
-      get: (key) => { try { return localStorage.getItem(key); } catch { return null; } },
-      set: (key, val) => { try { localStorage.setItem(key, val); } catch {} }
+    const tokenStorage = {
+      get: () => { try { return localStorage.getItem("gh_token"); } catch { return ""; } },
+      set: (v) => { try { localStorage.setItem("gh_token", v); } catch {} }
     };
 
-    function extractSheetId(url) {
-      const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-      return match ? match[1] : null;
+    function extractSheetId(input) {
+      const match = input.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+      if (match) return match[1];
+      if (/^[a-zA-Z0-9-_]{20,}$/.test(input.trim())) return input.trim();
+      return null;
     }
 
     function formatRowData(row) {
       return {
-        consola:  row[0] || "-",
-        hora:     row[2] || "-",
-        unidad:   row[3] || "-",
-        nombre:   row[4] || "-",
-        dni:      row[5] || "-",
-        telefono: row[6] || "-",
+        consola:  row[0]  || "-",
+        hora:     row[2]  || "-",
+        unidad:   row[3]  || "-",
+        nombre:   row[4]  || "-",
+        dni:      row[5]  || "-",
+        telefono: row[6]  || "-",
         estado:   row[10] || "-",
       };
     }
 
     function sheetBadge(sheet) {
-      if (sheet === "RETEN EXCEDENTE") return { bg: "#FEF3C7", color: "#92400E", label: "RETÉN" };
-      if (sheet === "OBSERVADOS")      return { bg: "#FEE2E2", color: "#991B1B", label: "OBSERVADO" };
-      return { bg: "#DCFCE7", color: "#166534", label: "PROGRAMADO" };
+      if (sheet === "RETEN EXCEDENTE") return { bg:"#FEF3C7", color:"#92400E", label:"RETÉN" };
+      if (sheet === "OBSERVADOS")      return { bg:"#FEE2E2", color:"#991B1B", label:"OBSERVADO" };
+      return { bg:"#DCFCE7", color:"#166534", label:"PROGRAMADO" };
     }
 
     function App() {
@@ -71,27 +66,46 @@
       const [results,         setResults]         = useState([]);
       const [isLoading,       setIsLoading]       = useState(true);
       const [loadingMsg,      setLoadingMsg]      = useState("");
-      const [error,           setError]           = useState("");
+      const [globalError,     setGlobalError]     = useState("");
+      const [sheetErrors,     setSheetErrors]     = useState([]);
+      const [lastUpdate,      setLastUpdate]      = useState("");
       const [showAdmin,       setShowAdmin]       = useState(false);
       const [adminUnlocked,   setAdminUnlocked]   = useState(false);
-      const [passwordAttempt, setPasswordAttempt] = useState("");
+      const [passwordInput,   setPasswordInput]   = useState("");
+      const [passwordError,   setPasswordError]   = useState("");
+      const [ghToken,         setGhToken]         = useState(tokenStorage.get() || "");
       const [newSheetUrl,     setNewSheetUrl]     = useState("");
-      const [lastUpdate,      setLastUpdate]      = useState("");
-      const [sheetErrors,     setSheetErrors]     = useState([]);
+      const [saveStatus,      setSaveStatus]      = useState(""); // "saving" | "ok" | "error"
+      const [saveMsg,         setSaveMsg]         = useState("");
 
-      useEffect(() => {
-        const savedId = storage.get("prog-sheet-id") || DEFAULT_SHEET_ID;
-        if (savedId) {
-          setSheetId(savedId);
-          loadGoogleSheet(savedId).finally(() => setIsLoading(false));
-        } else {
+      useEffect(() => { initLoad(); }, []);
+
+      async function initLoad() {
+        setIsLoading(true);
+        setLoadingMsg("Leyendo configuración...");
+        try {
+          const id = await fetchConfigSheetId();
+          setSheetId(id);
+          await loadGoogleSheet(id);
+        } catch (e) {
+          setGlobalError("No se pudo leer la configuración: " + e.message);
+        } finally {
           setIsLoading(false);
+          setLoadingMsg("");
         }
-      }, []);
+      }
+
+      async function fetchConfigSheetId() {
+        const res = await fetch(RAW_CONFIG_URL + "?t=" + Date.now());
+        if (!res.ok) throw new Error("config.json no encontrado en el repositorio.");
+        const json = await res.json();
+        if (!json.sheetId) throw new Error("config.json no tiene el campo sheetId.");
+        return json.sheetId;
+      }
 
       async function loadGoogleSheet(id) {
         setIsLoading(true);
-        setError("");
+        setGlobalError("");
         setSheetErrors([]);
         const processedData = {};
         const errors = [];
@@ -100,16 +114,12 @@
           setLoadingMsg(`Cargando hoja: ${sheetName}...`);
           const encoded = encodeURIComponent(sheetName);
           const csvUrl = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=${encoded}`;
-
           try {
             const res = await fetch(csvUrl);
             if (!res.ok) { errors.push(`${sheetName}: Error HTTP ${res.status}`); continue; }
             const text = await res.text();
-            if (text.trim().startsWith("<!")) {
-              errors.push(`${sheetName}: El Sheet no es público o la hoja no existe`);
-              continue;
-            }
-            const parsed = Papa.parse(text, { header: false, skipEmptyLines: true });
+            if (text.trim().startsWith("<!")) { errors.push(`${sheetName}: Sheet no público o hoja inexistente`); continue; }
+            const parsed = Papa.parse(text, { header:false, skipEmptyLines:true });
             processedData[sheetName] = parsed.data;
           } catch (err) {
             errors.push(`${sheetName}: ${err.message}`);
@@ -117,13 +127,11 @@
         }
 
         setSheetErrors(errors);
-
         if (Object.keys(processedData).length === 0) {
-          setError("No se pudo cargar ninguna hoja. Asegúrate de que el Sheet sea público.");
+          setGlobalError("No se pudo cargar ninguna hoja. Verifica que el Sheet sea público.");
           setIsLoading(false);
           return;
         }
-
         setData(processedData);
         setLastUpdate(new Date().toLocaleString("es-PE"));
         setSearchDNI("");
@@ -132,15 +140,46 @@
         setLoadingMsg("");
       }
 
-      function handleConfigureSheet() {
+      async function handleUpdateSheet() {
+        if (!ghToken.trim()) { setSaveStatus("error"); setSaveMsg("Ingresa tu Token de GitHub."); return; }
         const id = extractSheetId(newSheetUrl.trim());
-        if (!id) { setError("Enlace inválido. Pega el enlace completo de Google Sheets."); return; }
-        setSheetId(id);
-        storage.set("prog-sheet-id", id);
-        loadGoogleSheet(id);
-        setNewSheetUrl("");
-        setShowAdmin(false);
-        setAdminUnlocked(false);
+        if (!id) { setSaveStatus("error"); setSaveMsg("Enlace de Sheet inválido."); return; }
+
+        setSaveStatus("saving");
+        setSaveMsg("Guardando en GitHub...");
+        tokenStorage.set(ghToken.trim());
+
+        try {
+          // 1. Obtener SHA actual del archivo
+          const metaRes = await fetch(API_CONFIG_URL, {
+            headers: { Authorization: `Bearer ${ghToken.trim()}`, Accept: "application/vnd.github+json" }
+          });
+          if (!metaRes.ok) throw new Error("No se pudo acceder al repo. Verifica tu token.");
+          const meta = await metaRes.json();
+          const sha = meta.sha;
+
+          // 2. Actualizar config.json con el nuevo sheetId
+          const newContent = btoa(JSON.stringify({ sheetId: id }));
+          const putRes = await fetch(API_CONFIG_URL, {
+            method: "PUT",
+            headers: { Authorization:`Bearer ${ghToken.trim()}`, Accept:"application/vnd.github+json", "Content-Type":"application/json" },
+            body: JSON.stringify({ message:"Actualizar Sheet del día", content: newContent, sha })
+          });
+          if (!putRes.ok) {
+            const err = await putRes.json();
+            throw new Error(err.message || "Error al actualizar el archivo.");
+          }
+
+          // 3. Cargar los datos del nuevo sheet
+          setSheetId(id);
+          setSaveStatus("ok");
+          setSaveMsg("✅ Sheet actualizado. Todos verán los datos nuevos.");
+          setNewSheetUrl("");
+          await loadGoogleSheet(id);
+        } catch (e) {
+          setSaveStatus("error");
+          setSaveMsg("❌ " + e.message);
+        }
       }
 
       function searchByDNI(dni) {
@@ -157,130 +196,146 @@
         setResults(found);
       }
 
-      /* ── LOADING ── */
+      // ── LOADING ──
       if (isLoading) return (
-        <div style={{ fontFamily: "'Segoe UI',sans-serif", background: "#F0F4FF", minHeight: "100vh" }}>
-          <div style={{ background: "linear-gradient(135deg,#1D4ED8,#3B82F6)", padding: "18px 20px" }}>
-            <h1 style={{ color: "#fff", fontSize: 20, fontWeight: 700 }}>🔍 Control de Personal</h1>
-            <p style={{ color: "rgba(255,255,255,0.75)", fontSize: 12 }}>Búsqueda por DNI</p>
+        <div style={{fontFamily:"'Segoe UI',sans-serif",background:"#F0F4FF",minHeight:"100vh"}}>
+          <div style={{background:"linear-gradient(135deg,#1D4ED8,#3B82F6)",padding:"18px 20px"}}>
+            <h1 style={{color:"#fff",fontSize:20,fontWeight:700}}>🔍 Control de Personal</h1>
+            <p style={{color:"rgba(255,255,255,0.75)",fontSize:12}}>Búsqueda por DNI</p>
           </div>
-          <div style={{ textAlign: "center", padding: 50 }}>
-            <div className="spinner" />
-            <p style={{ fontWeight: 600, color: "#1e293b" }}>{loadingMsg || "Cargando..."}</p>
-            <p style={{ fontSize: 12, color: "#94A3B8" }}>Conectando con Google Sheets</p>
+          <div style={{textAlign:"center",padding:50}}>
+            <div className="spinner"/>
+            <p style={{fontWeight:600,color:"#1e293b"}}>{loadingMsg||"Cargando..."}</p>
+            <p style={{fontSize:12,color:"#94A3B8"}}>Conectando con Google Sheets</p>
           </div>
         </div>
       );
 
-      /* ── MAIN ── */
+      // ── MAIN ──
       return (
-        <div style={{ fontFamily: "'Segoe UI',sans-serif", background: "#F0F4FF", minHeight: "100vh", color: "#1e293b" }}>
+        <div style={{fontFamily:"'Segoe UI',sans-serif",background:"#F0F4FF",minHeight:"100vh",color:"#1e293b"}}>
 
           {/* HEADER */}
-          <div style={{ background: "linear-gradient(135deg,#1D4ED8,#3B82F6)", padding: "18px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 4px 12px rgba(37,99,235,0.4)" }}>
+          <div style={{background:"linear-gradient(135deg,#1D4ED8,#3B82F6)",padding:"18px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",boxShadow:"0 4px 12px rgba(37,99,235,0.4)"}}>
             <div>
-              <h1 style={{ color: "#fff", fontSize: 20, fontWeight: 700, margin: 0 }}>🔍 Control de Personal</h1>
-              <p style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, margin: "2px 0 0" }}>Búsqueda por DNI</p>
+              <h1 style={{color:"#fff",fontSize:20,fontWeight:700,margin:0}}>🔍 Control de Personal</h1>
+              <p style={{color:"rgba(255,255,255,0.75)",fontSize:12,margin:"2px 0 0"}}>Búsqueda por DNI</p>
             </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              {data && !isLoading && (
+            <div style={{display:"flex",gap:8}}>
+              {data && (
                 <button onClick={() => loadGoogleSheet(sheetId)} title="Actualizar datos"
-                  style={{ background: "rgba(255,255,255,0.2)", border: "none", borderRadius: 8, color: "#fff", fontSize: 20, width: 40, height: 40, cursor: "pointer" }}>
+                  style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:8,color:"#fff",fontSize:20,width:40,height:40,cursor:"pointer"}}>
                   🔄
                 </button>
               )}
-              <button onClick={() => { setShowAdmin(!showAdmin); setAdminUnlocked(false); setPasswordAttempt(""); setError(""); }}
-                style={{ background: "rgba(255,255,255,0.2)", border: "none", borderRadius: 8, color: "#fff", fontSize: 20, width: 40, height: 40, cursor: "pointer" }}>
+              <button onClick={() => {setShowAdmin(!showAdmin);setAdminUnlocked(false);setPasswordInput("");setPasswordError("");setSaveStatus("");setSaveMsg("");}}
+                style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:8,color:"#fff",fontSize:20,width:40,height:40,cursor:"pointer"}}>
                 ⚙️
               </button>
             </div>
           </div>
 
-          <div style={{ padding: 16 }}>
+          <div style={{padding:16}}>
+
+            {/* ERROR GLOBAL */}
+            {globalError && (
+              <div style={{background:"#FEF2F2",border:"1px solid #FCA5A5",borderRadius:10,padding:"12px 14px",marginBottom:12,color:"#DC2626",fontSize:13}}>
+                ⚠️ {globalError}
+              </div>
+            )}
 
             {/* PANEL ADMIN */}
             {showAdmin && (
-              <div style={{ background: "#EFF6FF", borderRadius: 14, padding: 16, marginBottom: 14, border: "1px solid #BFDBFE" }}>
-                <p style={{ fontSize: 16, fontWeight: 700, color: "#1D4ED8", marginBottom: 12 }}>⚙️ Panel Administrativo</p>
+              <div style={{background:"#EFF6FF",borderRadius:14,padding:16,marginBottom:14,border:"1px solid #BFDBFE"}}>
+                <p style={{fontSize:16,fontWeight:700,color:"#1D4ED8",marginBottom:12}}>⚙️ Panel Administrativo</p>
 
-                <p style={{ fontSize: 13, fontWeight: 600, color: "#1D4ED8", marginBottom: 4 }}>Sheet Actual</p>
-                <div style={{ padding: "10px 12px", background: "#fff", border: "1.5px solid #BFDBFE", borderRadius: 8, fontSize: 14, color: sheetId ? "#1e293b" : "#94A3B8", marginBottom: 14 }}>
-                  {sheetId ? `ID: ...${sheetId.slice(-16)}` : "Sin configuración aún"}
+                {/* Sheet actual */}
+                <p style={{fontSize:13,fontWeight:600,color:"#1D4ED8",marginBottom:4}}>Sheet activo</p>
+                <div style={{padding:"10px 12px",background:"#fff",border:"1.5px solid #BFDBFE",borderRadius:8,fontSize:13,color:sheetId?"#1e293b":"#94A3B8",marginBottom:14,wordBreak:"break-all"}}>
+                  {sheetId ? `ID: ...${sheetId.slice(-20)}` : "Sin configuración"}
                 </div>
 
                 {!adminUnlocked ? (
                   <>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: "#1D4ED8", marginBottom: 4 }}>Contraseña Admin</p>
-                    <input type="password" placeholder="Contraseña" value={passwordAttempt}
-                      onChange={e => { setPasswordAttempt(e.target.value); setError(""); }}
-                      onKeyDown={e => { if (e.key === "Enter") { if (passwordAttempt === ADMIN_PASSWORD) { setAdminUnlocked(true); setPasswordAttempt(""); } else { setError("Contraseña incorrecta"); setPasswordAttempt(""); } } }}
-                      style={{ width: "100%", padding: "10px 12px", fontSize: 14, border: "1.5px solid #BFDBFE", borderRadius: 8, marginBottom: 10 }} />
-                    {error && <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 8, padding: "10px 12px", color: "#DC2626", fontSize: 13, marginBottom: 10 }}>⚠️ {error}</div>}
-                    <button onClick={() => { if (passwordAttempt === ADMIN_PASSWORD) { setAdminUnlocked(true); setPasswordAttempt(""); } else { setError("Contraseña incorrecta"); setPasswordAttempt(""); } }}
-                      style={{ background: "#2563EB", color: "#fff", border: "none", borderRadius: 10, padding: "12px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer", width: "100%" }}>
+                    <p style={{fontSize:13,fontWeight:600,color:"#1D4ED8",marginBottom:4}}>Contraseña Admin</p>
+                    <input type="password" placeholder="Contraseña" value={passwordInput}
+                      onChange={e=>{setPasswordInput(e.target.value);setPasswordError("");}}
+                      onKeyDown={e=>{if(e.key==="Enter"){if(passwordInput===ADMIN_PASSWORD){setAdminUnlocked(true);setPasswordInput("");}else{setPasswordError("Contraseña incorrecta");setPasswordInput("");}}}}
+                      style={{width:"100%",padding:"10px 12px",fontSize:14,border:"1.5px solid #BFDBFE",borderRadius:8,marginBottom:10}}/>
+                    {passwordError && <div style={{background:"#FEF2F2",border:"1px solid #FCA5A5",borderRadius:8,padding:"10px 12px",color:"#DC2626",fontSize:13,marginBottom:10}}>⚠️ {passwordError}</div>}
+                    <button onClick={()=>{if(passwordInput===ADMIN_PASSWORD){setAdminUnlocked(true);setPasswordInput("");}else{setPasswordError("Contraseña incorrecta");setPasswordInput("");}}}
+                      style={{background:"#2563EB",color:"#fff",border:"none",borderRadius:10,padding:"12px 20px",fontSize:14,fontWeight:600,cursor:"pointer",width:"100%"}}>
                       Ingresar
                     </button>
                   </>
                 ) : (
                   <>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: "#1D4ED8", marginBottom: 4 }}>Cargar nuevo Google Sheet</p>
-                    <div style={{ background: "#DBEAFE", borderRadius: 8, padding: "8px 12px", marginBottom: 10, fontSize: 12, color: "#1D4ED8" }}>
+                    {/* Token GitHub */}
+                    <p style={{fontSize:13,fontWeight:600,color:"#1D4ED8",marginBottom:4}}>🔑 Token de GitHub <span style={{fontWeight:400,color:"#64748B"}}>(se guarda solo en este dispositivo)</span></p>
+                    <input type="password" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" value={ghToken}
+                      onChange={e=>{setGhToken(e.target.value);setSaveStatus("");setSaveMsg("");}}
+                      style={{width:"100%",padding:"10px 12px",fontSize:13,border:"1.5px solid #BFDBFE",borderRadius:8,marginBottom:14}}/>
+
+                    {/* Nuevo Sheet */}
+                    <p style={{fontSize:13,fontWeight:600,color:"#1D4ED8",marginBottom:4}}>📋 Enlace del Sheet de hoy</p>
+                    <div style={{background:"#DBEAFE",borderRadius:8,padding:"8px 12px",marginBottom:10,fontSize:12,color:"#1D4ED8"}}>
                       ℹ️ El Sheet debe estar en modo <strong>"Cualquier persona con el enlace puede ver"</strong>
                     </div>
-                    <textarea placeholder="Pega aquí el enlace de Google Sheets" value={newSheetUrl}
-                      onChange={e => { setNewSheetUrl(e.target.value); setError(""); }}
-                      style={{ width: "100%", padding: "10px 12px", fontSize: 13, border: "1.5px solid #BFDBFE", borderRadius: 8, marginBottom: 10, minHeight: 72, resize: "vertical" }} />
-                    {error && <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 8, padding: "10px 12px", color: "#DC2626", fontSize: 13, marginBottom: 10 }}>⚠️ {error}</div>}
-                    {sheetErrors.length > 0 && (
-                      <div style={{ background: "#FFFBEB", border: "1px solid #FCD34D", borderRadius: 8, padding: "10px 12px", marginBottom: 10, color: "#92400E", fontSize: 12 }}>
-                        <strong>Advertencias:</strong>
-                        {sheetErrors.map((e, i) => <div key={i}>• {e}</div>)}
+                    <textarea placeholder="https://docs.google.com/spreadsheets/d/..." value={newSheetUrl}
+                      onChange={e=>{setNewSheetUrl(e.target.value);setSaveStatus("");setSaveMsg("");}}
+                      style={{width:"100%",padding:"10px 12px",fontSize:13,border:"1.5px solid #BFDBFE",borderRadius:8,marginBottom:10,minHeight:72,resize:"vertical"}}/>
+
+                    {saveMsg && (
+                      <div style={{background: saveStatus==="ok"?"#F0FDF4":saveStatus==="error"?"#FEF2F2":"#EFF6FF", border:`1px solid ${saveStatus==="ok"?"#86EFAC":saveStatus==="error"?"#FCA5A5":"#BFDBFE"}`, borderRadius:8,padding:"10px 12px",color:saveStatus==="ok"?"#166534":saveStatus==="error"?"#DC2626":"#1D4ED8",fontSize:13,marginBottom:10}}>
+                        {saveMsg}
                       </div>
                     )}
-                    <button onClick={handleConfigureSheet}
-                      style={{ background: "#2563EB", color: "#fff", border: "none", borderRadius: 10, padding: "12px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer", width: "100%" }}>
-                      📥 Cargar Sheet
+
+                    <button onClick={handleUpdateSheet} disabled={saveStatus==="saving"}
+                      style={{background:saveStatus==="saving"?"#93C5FD":"#2563EB",color:"#fff",border:"none",borderRadius:10,padding:"12px 20px",fontSize:14,fontWeight:600,cursor:saveStatus==="saving"?"not-allowed":"pointer",width:"100%"}}>
+                      {saveStatus==="saving" ? "⏳ Guardando..." : "🚀 Actualizar Sheet para todos"}
                     </button>
                   </>
                 )}
-                <button onClick={() => { setShowAdmin(false); setAdminUnlocked(false); setPasswordAttempt(""); setError(""); }}
-                  style={{ background: "#E2E8F0", color: "#475569", border: "none", borderRadius: 10, padding: "11px 20px", fontSize: 14, cursor: "pointer", width: "100%", marginTop: 8 }}>
+
+                <button onClick={()=>{setShowAdmin(false);setAdminUnlocked(false);setPasswordInput("");setPasswordError("");setSaveStatus("");setSaveMsg("");}}
+                  style={{background:"#E2E8F0",color:"#475569",border:"none",borderRadius:10,padding:"11px 20px",fontSize:14,cursor:"pointer",width:"100%",marginTop:8}}>
                   Cerrar Panel
                 </button>
               </div>
             )}
 
             {/* SIN DATOS */}
-            {!data && !showAdmin && (
-              <div style={{ background: "#fff", borderRadius: 14, padding: 32, textAlign: "center", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
-                <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
-                <p style={{ fontWeight: 600 }}>Sin datos cargados</p>
-                <p style={{ color: "#64748B", fontSize: 14, marginTop: 6 }}>Presiona ⚙️ arriba para configurar tu Google Sheet</p>
+            {!data && !showAdmin && !globalError && (
+              <div style={{background:"#fff",borderRadius:14,padding:32,textAlign:"center",boxShadow:"0 2px 12px rgba(0,0,0,0.06)"}}>
+                <div style={{fontSize:48,marginBottom:12}}>📋</div>
+                <p style={{fontWeight:600}}>Sin datos cargados</p>
+                <p style={{color:"#64748B",fontSize:14,marginTop:6}}>Presiona ⚙️ para configurar el Sheet del día</p>
               </div>
             )}
 
             {/* BUSCADOR */}
             {data && !showAdmin && (
               <>
-                <div style={{ background: "#fff", borderRadius: 14, padding: 16, boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 14 }}>
-                  <div style={{ position: "relative" }}>
+                <div style={{background:"#fff",borderRadius:14,padding:16,boxShadow:"0 2px 12px rgba(0,0,0,0.06)",marginBottom:14}}>
+                  <div style={{position:"relative"}}>
                     <input type="text" inputMode="numeric" placeholder="Ingresa DNI (ej: 76305088)"
-                      value={searchDNI} onChange={e => searchByDNI(e.target.value)}
-                      style={{ width: "100%", padding: "14px 44px 14px 16px", fontSize: 17, border: "2px solid #BFDBFE", borderRadius: 10, background: "#F8FAFF", color: "#1e293b" }} />
+                      value={searchDNI} onChange={e=>searchByDNI(e.target.value)}
+                      style={{width:"100%",padding:"14px 44px 14px 16px",fontSize:17,border:"2px solid #BFDBFE",borderRadius:10,background:"#F8FAFF",color:"#1e293b"}}/>
                     {searchDNI && (
-                      <button onClick={() => { setSearchDNI(""); setResults([]); }}
-                        style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "#E2E8F0", border: "none", borderRadius: "50%", width: 26, height: 26, cursor: "pointer", fontSize: 13, color: "#64748B" }}>
+                      <button onClick={()=>{setSearchDNI("");setResults([]);}}
+                        style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"#E2E8F0",border:"none",borderRadius:"50%",width:26,height:26,cursor:"pointer",fontSize:13,color:"#64748B"}}>
                         ✕
                       </button>
                     )}
                   </div>
-                  <div style={{ fontSize: 12, color: "#64748B", marginTop: 8, padding: "8px 12px", background: "#F0F9FF", borderRadius: 8, borderLeft: "3px solid #3B82F6" }}>
+                  <div style={{fontSize:12,color:"#64748B",marginTop:8,padding:"8px 12px",background:"#F0F9FF",borderRadius:8,borderLeft:"3px solid #3B82F6"}}>
                     ℹ️ Si tu DNI empieza con 0, omítelo. Ej: 076305088 → escribir 76305088
                   </div>
-                  {lastUpdate && <div style={{ fontSize: 11, color: "#94A3B8", textAlign: "right", marginTop: 6 }}>Última carga: {lastUpdate}</div>}
+                  {lastUpdate && <div style={{fontSize:11,color:"#94A3B8",textAlign:"right",marginTop:6}}>Última carga: {lastUpdate}</div>}
                   {sheetErrors.length > 0 && (
-                    <div style={{ background: "#FFFBEB", borderRadius: 8, padding: "8px 12px", marginTop: 8, color: "#92400E", fontSize: 12 }}>
-                      {sheetErrors.map((e, i) => <div key={i}>⚠️ {e}</div>)}
+                    <div style={{background:"#FFFBEB",borderRadius:8,padding:"8px 12px",marginTop:8,color:"#92400E",fontSize:12}}>
+                      {sheetErrors.map((e,i)=><div key={i}>⚠️ {e}</div>)}
                     </div>
                   )}
                 </div>
@@ -289,22 +344,22 @@
                 {searchDNI && (
                   results.length > 0 ? (
                     <>
-                      <div style={{ background: "#EFF6FF", color: "#1D4ED8", borderRadius: 20, padding: "4px 12px", fontSize: 13, fontWeight: 600, display: "inline-block", marginBottom: 12 }}>
-                        {results.length} resultado{results.length !== 1 ? "s" : ""} encontrado{results.length !== 1 ? "s" : ""}
+                      <div style={{background:"#EFF6FF",color:"#1D4ED8",borderRadius:20,padding:"4px 12px",fontSize:13,fontWeight:600,display:"inline-block",marginBottom:12}}>
+                        {results.length} resultado{results.length!==1?"s":""} encontrado{results.length!==1?"s":""}
                       </div>
-                      {results.map((r, i) => {
+                      {results.map((r,i)=>{
                         const f = formatRowData(r.rowData);
                         const b = sheetBadge(r.sheet);
                         return (
-                          <div key={i} style={{ background: "#fff", borderRadius: 12, padding: 14, boxShadow: "0 2px 8px rgba(0,0,0,0.07)", marginBottom: 12, borderLeft: `4px solid ${b.color}` }}>
-                            <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: b.bg, color: b.color, marginBottom: 8 }}>
+                          <div key={i} style={{background:"#fff",borderRadius:12,padding:14,boxShadow:"0 2px 8px rgba(0,0,0,0.07)",marginBottom:12,borderLeft:`4px solid ${b.color}`}}>
+                            <span style={{display:"inline-block",padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700,background:b.bg,color:b.color,marginBottom:8}}>
                               {b.label}
                             </span>
-                            <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 6 }}>{f.nombre}</div>
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 12px" }}>
-                              {[["DNI", f.dni], ["Teléfono", f.telefono], ["Unidad", f.unidad], ["Consola", f.consola], ["Hora", f.hora], ["Estado", f.estado]].map(([lbl, val]) => (
-                                <div key={lbl} style={{ fontSize: 13 }}>
-                                  <span style={{ color: "#94A3B8", fontSize: 11, display: "block" }}>{lbl}</span>
+                            <div style={{fontSize:17,fontWeight:700,marginBottom:6}}>{f.nombre}</div>
+                            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 12px"}}>
+                              {[["DNI",f.dni],["Teléfono",f.telefono],["Unidad",f.unidad],["Consola",f.consola],["Hora",f.hora],["Estado",f.estado]].map(([lbl,val])=>(
+                                <div key={lbl} style={{fontSize:13}}>
+                                  <span style={{color:"#94A3B8",fontSize:11,display:"block"}}>{lbl}</span>
                                   {val}
                                 </div>
                               ))}
@@ -314,10 +369,10 @@
                       })}
                     </>
                   ) : (
-                    <div style={{ textAlign: "center", padding: 30, color: "#94A3B8" }}>
-                      <div style={{ fontSize: 40, marginBottom: 10 }}>🔎</div>
-                      <p style={{ fontWeight: 600 }}>DNI no encontrado</p>
-                      <p style={{ fontSize: 13, marginTop: 4 }}>Verifica el número e intenta de nuevo</p>
+                    <div style={{textAlign:"center",padding:30,color:"#94A3B8"}}>
+                      <div style={{fontSize:40,marginBottom:10}}>🔎</div>
+                      <p style={{fontWeight:600}}>DNI no encontrado</p>
+                      <p style={{fontSize:13,marginTop:4}}>Verifica el número e intenta de nuevo</p>
                     </div>
                   )
                 )}
