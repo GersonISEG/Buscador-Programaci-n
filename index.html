@@ -24,7 +24,7 @@
     const ADMIN_PASSWORD  = "admin123";
     const SHEET_NAMES     = ["PROGRAMACION", "RETEN EXCEDENTE", "OBSERVADOS"];
     const GITHUB_USER     = "GersonISEG";
-    const GITHUB_REPO     = "Buscador-Programaci%C3%B3n";
+    const GITHUB_REPO     = "Buscador-Programaci-n";
     const CONFIG_FILE     = "config.json";
     const RAW_CONFIG_URL  = `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/main/${CONFIG_FILE}`;
     const API_CONFIG_URL  = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${CONFIG_FILE}`;
@@ -144,42 +144,26 @@
         if (!ghToken.trim()) { setSaveStatus("error"); setSaveMsg("Ingresa tu Token de GitHub."); return; }
         const id = extractSheetId(newSheetUrl.trim());
         if (!id) { setSaveStatus("error"); setSaveMsg("Enlace de Sheet inválido."); return; }
-
         setSaveStatus("saving");
         setSaveMsg("Guardando en GitHub...");
         tokenStorage.set(ghToken.trim());
-
         try {
-          // 1. Obtener SHA actual del archivo
-          const metaRes = await fetch(API_CONFIG_URL, {
-            headers: { Authorization: `Bearer ${ghToken.trim()}`, Accept: "application/vnd.github+json" }
-          });
-          if (!metaRes.ok) throw new Error("No se pudo acceder al repo. Verifica tu token.");
-          const meta = await metaRes.json();
-          const sha = meta.sha;
-
-          // 2. Actualizar config.json con el nuevo sheetId
+          const headers = { Authorization:`Bearer ${ghToken.trim()}`, Accept:"application/vnd.github+json", "Content-Type":"application/json" };
           const newContent = btoa(JSON.stringify({ sheetId: id }));
-          const putRes = await fetch(API_CONFIG_URL, {
-            method: "PUT",
-            headers: { Authorization:`Bearer ${ghToken.trim()}`, Accept:"application/vnd.github+json", "Content-Type":"application/json" },
-            body: JSON.stringify({ message:"Actualizar Sheet del día", content: newContent, sha })
-          });
-          if (!putRes.ok) {
-            const err = await putRes.json();
-            throw new Error(err.message || "Error al actualizar el archivo.");
-          }
-
-          // 3. Cargar los datos del nuevo sheet
+          let sha = null;
+          const metaRes = await fetch(API_CONFIG_URL, { headers });
+          if (metaRes.ok) { const meta = await metaRes.json(); sha = meta.sha; }
+          else if (metaRes.status !== 404) throw new Error("No se pudo acceder al repo. Verifica que el token tenga permiso repo.");
+          const body = { message:"Actualizar Sheet del dia", content: newContent };
+          if (sha) body.sha = sha;
+          const putRes = await fetch(API_CONFIG_URL, { method:"PUT", headers, body: JSON.stringify(body) });
+          if (!putRes.ok) { const err = await putRes.json(); throw new Error(err.message || "Error al guardar."); }
           setSheetId(id);
           setSaveStatus("ok");
-          setSaveMsg("✅ Sheet actualizado. Todos verán los datos nuevos.");
+          setSaveMsg("Sheet actualizado. Todos veran los datos nuevos.");
           setNewSheetUrl("");
           await loadGoogleSheet(id);
-        } catch (e) {
-          setSaveStatus("error");
-          setSaveMsg("❌ " + e.message);
-        }
+        } catch (e) { setSaveStatus("error"); setSaveMsg("Error: " + e.message); }
       }
 
       function searchByDNI(dni) {
