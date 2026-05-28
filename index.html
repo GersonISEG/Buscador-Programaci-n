@@ -32,6 +32,9 @@
     const ADMIN_PASSWORD = "admin123";
     const SHEET_NAMES = ["PROGRAMACION", "RETEN EXCEDENTE", "OBSERVADOS"];
 
+    // ✅ ID del Google Sheet por defecto — todos los usuarios cargarán esto al abrir la app
+    const DEFAULT_SHEET_ID = "1IPwiAiUlsC8SrTQNQhITIRz33fGsuDgstApA0--2yRs";
+
     // Storage simple usando localStorage (sin window.storage de Claude)
     const storage = {
       get: (key) => { try { return localStorage.getItem(key); } catch { return null; } },
@@ -77,7 +80,7 @@
       const [sheetErrors,     setSheetErrors]     = useState([]);
 
       useEffect(() => {
-        const savedId = storage.get("prog-sheet-id");
+        const savedId = storage.get("prog-sheet-id") || DEFAULT_SHEET_ID;
         if (savedId) {
           setSheetId(savedId);
           loadGoogleSheet(savedId).finally(() => setIsLoading(false));
