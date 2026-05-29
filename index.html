@@ -338,17 +338,17 @@
                           </span>
                           <div style={{fontSize:17,fontWeight:700,marginBottom:6}}>{f.nombre}</div>
                           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 12px"}}>
-                            {[["DNI",f.dni],["Teléfono",f.telefono],["Unidad",f.unidad],["Consola",f.consola],["Hora",f.hora],["Estado",f.estado]].map(([lbl,val])=>(
+                            {[["DNI",f.dni],["Teléfono",f.telefono],["Unidad",f.unidad],["Consola",f.consola],["Hora",f.hora],["Motivo",f.motivo]].map(([lbl,val])=>(
                               <div key={lbl} style={{fontSize:13}}>
                                 <span style={{color:"#94A3B8",fontSize:11,display:"block"}}>{lbl}</span>
                                 {val}
                               </div>
                             ))}
                           </div>
-                          {f.motivo && f.motivo !== "-" && (
-                            <div style={{marginTop:8,padding:"8px 10px",background:"#FFFBEB",borderRadius:8,borderLeft:"3px solid #F59E0B"}}>
-                              <span style={{color:"#94A3B8",fontSize:11,display:"block"}}>Motivo</span>
-                              <span style={{fontSize:13,color:"#92400E"}}>{f.motivo}</span>
+                          {f.estado && f.estado !== "-" && (
+                            <div style={{marginTop:8,padding:"8px 10px",background:"#EFF6FF",borderRadius:8,borderLeft:"3px solid #2563EB"}}>
+                              <span style={{color:"#94A3B8",fontSize:11,display:"block"}}>Estado</span>
+                              <span style={{fontSize:13,fontWeight:600,color:"#1D4ED8"}}>{f.estado}</span>
                             </div>
                           )}
                         </div>
