@@ -322,20 +322,21 @@
                   ℹ️ Puedes buscar por <strong>DNI</strong> o por <strong>Torre</strong>. Si el DNI empieza con 0, omítelo.
                 </div>
                 {lastUpdate && <div style={{fontSize:11,color:"#94A3B8",textAlign:"right",marginTop:6}}>Última carga: {lastUpdate}</div>}
-                {sheetTitle && (
-                  <div style={{marginTop:8,padding:"8px 12px",background:"#F0FDF4",borderRadius:8,borderLeft:"3px solid #16A34A",display:"flex",alignItems:"center",gap:8}}>
-                    <span style={{fontSize:16}}>📄</span>
-                    <div>
-                      <span style={{fontSize:10,color:"#94A3B8",display:"block"}}>Archivo cargado</span>
-                      <span style={{fontSize:13,fontWeight:600,color:"#166534"}}>{sheetTitle}</span>
-                    </div>
-                  </div>
-                )}
+
                 {sheetErrs.length > 0 && (
                   <div style={{background:"#FFFBEB",borderRadius:8,padding:"8px 12px",marginTop:8,color:"#92400E",fontSize:12}}>
                     {sheetErrs.map((e,i)=><div key={i}>⚠️ {e}</div>)}
                   </div>
                 )}
+              </div>
+
+              {/* ARCHIVO CARGADO */}
+              <div style={{background:"#F0FDF4",borderRadius:10,padding:"10px 14px",marginBottom:14,border:"1px solid #86EFAC",display:"flex",alignItems:"center",gap:10}}>
+                <span style={{fontSize:20}}>📄</span>
+                <div>
+                  <span style={{fontSize:10,color:"#94A3B8",display:"block"}}>Archivo cargado</span>
+                  <span style={{fontSize:14,fontWeight:700,color:"#166534"}}>{sheetTitle || "Sin nombre — el admin puede agregar el nombre al cargar el Sheet"}</span>
+                </div>
               </div>
 
               {/* RESULTADOS */}
