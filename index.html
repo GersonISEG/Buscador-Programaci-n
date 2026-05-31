@@ -80,6 +80,7 @@
     const [saveStatus,    setSaveStatus]    = useState("");
     const [saveMsg,       setSaveMsg]       = useState("");
     const [sheetTitle,    setSheetTitle]    = useState("");
+    const [sheetName,     setSheetName]     = useState("");
 
     useEffect(() => { initLoad(); }, []);
 
@@ -99,6 +100,7 @@
           return;
         }
         setSheetId(json.sheetId);
+        setSheetTitle(json.sheetName || "");
         await loadSheet(json.sheetId);
       } catch (e) {
         setGlobalErr(e.message);
@@ -111,16 +113,8 @@
       setLoading(true);
       setGlobalErr("");
       setSheetErrs([]);
-      setSheetTitle("");
       const processed = {};
       const errors = [];
-      // Obtener nombre del archivo desde la API pública de Google Sheets
-      try {
-        const infoRes = await fetch("https://docs.google.com/spreadsheets/d/" + id + "/gviz/tq?tqx=out:json&sheet=PROGRAMACION");
-        const infoTxt = await infoRes.text();
-        const match = infoTxt.match(/"docName":"([^"]+)"/);
-        if (match) setSheetTitle(decodeURIComponent(match[1].replace(/\u([0-9a-fA-F]{4})/g, (m,p)=>String.fromCharCode(parseInt(p,16)))));
-      } catch {}
       for (const name of SHEET_NAMES) {
         setLoadMsg("Cargando hoja: " + name + "...");
         const url = "https://docs.google.com/spreadsheets/d/" + id + "/gviz/tq?tqx=out:csv&sheet=" + encodeURIComponent(name);
@@ -264,6 +258,11 @@
                   </p>
                   <input type="password" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" value={token}
                     onChange={e=>{setToken(e.target.value);setSaveStatus("");setSaveMsg("");}}
+                    style={{width:"100%",padding:"10px 12px",fontSize:13,border:"1.5px solid #BFDBFE",borderRadius:8,marginBottom:14}}/>
+
+                  <p style={{fontSize:13,fontWeight:600,color:"#1D4ED8",marginBottom:4}}>🏷️ Nombre del Sheet (ej: Programación 31-05-2026)</p>
+                  <input type="text" placeholder="Ej: Programación 31-05-2026" value={sheetName}
+                    onChange={e=>{setSheetName(e.target.value);setSaveStatus("");setSaveMsg("");}}
                     style={{width:"100%",padding:"10px 12px",fontSize:13,border:"1.5px solid #BFDBFE",borderRadius:8,marginBottom:14}}/>
 
                   <p style={{fontSize:13,fontWeight:600,color:"#1D4ED8",marginBottom:4}}>📋 Enlace del Sheet de hoy</p>
