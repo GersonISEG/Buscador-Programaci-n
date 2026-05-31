@@ -29,6 +29,11 @@
   const RAW_URL  = "https://raw.githubusercontent.com/" + GITHUB_USER + "/" + GITHUB_REPO + "/main/" + CONFIG_FILE;
   const API_URL  = "https://api.github.com/repos/" + GITHUB_USER + "/" + GITHUB_REPO + "/contents/" + CONFIG_FILE;
 
+  // btoa seguro para tildes y caracteres especiales
+  function toBase64(str) {
+    return btoa(unescape(encodeURIComponent(str)));
+  }
+
   const tkStore = {
     get: () => { try { return localStorage.getItem("gh_token") || ""; } catch { return ""; } },
     set: (v) => { try { localStorage.setItem("gh_token", v); } catch {} }
@@ -61,26 +66,26 @@
   }
 
   function App() {
-    const [data,          setData]          = useState(null);
-    const [sheetId,       setSheetId]       = useState("");
-    const [dni,           setDni]           = useState("");
-    const [results,       setResults]       = useState([]);
-    const [loading,       setLoading]       = useState(true);
-    const [loadMsg,       setLoadMsg]       = useState("");
-    const [globalErr,     setGlobalErr]     = useState("");
-    const [sheetErrs,     setSheetErrs]     = useState([]);
-    const [lastUpdate,    setLastUpdate]    = useState("");
-    const [sinSheet,      setSinSheet]      = useState(false);
-    const [showAdmin,     setShowAdmin]     = useState(false);
-    const [unlocked,      setUnlocked]      = useState(false);
-    const [pwdInput,      setPwdInput]      = useState("");
-    const [pwdErr,        setPwdErr]        = useState("");
-    const [token,         setToken]         = useState(tkStore.get());
-    const [newUrl,        setNewUrl]        = useState("");
-    const [saveStatus,    setSaveStatus]    = useState("");
-    const [saveMsg,       setSaveMsg]       = useState("");
-    const [sheetTitle,    setSheetTitle]    = useState("");
-    const [sheetName,     setSheetName]     = useState("");
+    const [data,        setData]        = useState(null);
+    const [sheetId,     setSheetId]     = useState("");
+    const [sheetTitle,  setSheetTitle]  = useState("");
+    const [dni,         setDni]         = useState("");
+    const [results,     setResults]     = useState([]);
+    const [loading,     setLoading]     = useState(true);
+    const [loadMsg,     setLoadMsg]     = useState("");
+    const [globalErr,   setGlobalErr]   = useState("");
+    const [sheetErrs,   setSheetErrs]   = useState([]);
+    const [lastUpdate,  setLastUpdate]  = useState("");
+    const [sinSheet,    setSinSheet]    = useState(false);
+    const [showAdmin,   setShowAdmin]   = useState(false);
+    const [unlocked,    setUnlocked]    = useState(false);
+    const [pwdInput,    setPwdInput]    = useState("");
+    const [pwdErr,      setPwdErr]      = useState("");
+    const [token,       setToken]       = useState(tkStore.get());
+    const [sheetName,   setSheetName]   = useState("");
+    const [newUrl,      setNewUrl]      = useState("");
+    const [saveStatus,  setSaveStatus]  = useState("");
+    const [saveMsg,     setSaveMsg]     = useState("");
 
     useEffect(() => { initLoad(); }, []);
 
@@ -95,8 +100,7 @@
         const json = await res.json();
         if (!json.sheetId || json.sheetId.trim() === "") {
           setSinSheet(true);
-          setLoading(false);
-          setLoadMsg("");
+          setLoading(false); setLoadMsg("");
           return;
         }
         setSheetId(json.sheetId);
@@ -104,8 +108,7 @@
         await loadSheet(json.sheetId);
       } catch (e) {
         setGlobalErr(e.message);
-        setLoading(false);
-        setLoadMsg("");
+        setLoading(false); setLoadMsg("");
       }
     }
 
@@ -144,18 +147,27 @@
       setSaveStatus("saving"); setSaveMsg("Guardando en GitHub...");
       tkStore.set(token.trim());
       try {
-        const headers = { Authorization:"Bearer " + token.trim(), Accept:"application/vnd.github+json", "Content-Type":"application/json" };
-        const content = btoa(JSON.stringify({ sheetId: id }));
+        const headers = {
+          Authorization: "Bearer " + token.trim(),
+          Accept: "application/vnd.github+json",
+          "Content-Type": "application/json"
+        };
+        // toBase64 maneja tildes y caracteres especiales correctamente
+        const jsonStr  = JSON.stringify({ sheetId: id, sheetName: sheetName.trim() });
+        const content  = toBase64(jsonStr);
         let sha = null;
         const metaRes = await fetch(API_URL, { headers });
         if (metaRes.ok) { sha = (await metaRes.json()).sha; }
         else if (metaRes.status !== 404) throw new Error("No se pudo acceder al repo. Verifica que el token tenga permiso 'repo'.");
-        const body = { message:"Actualizar Sheet del dia", content };
+        const body = { message: "Actualizar Sheet del dia", content };
         if (sha) body.sha = sha;
         const put = await fetch(API_URL, { method:"PUT", headers, body: JSON.stringify(body) });
         if (!put.ok) { const e = await put.json(); throw new Error(e.message || "Error al guardar."); }
-        setSheetId(id); setSinSheet(false);
-        setSaveStatus("ok"); setSaveMsg("✅ Sheet actualizado. Todos verán los datos nuevos.");
+        setSheetId(id);
+        setSheetTitle(sheetName.trim());
+        setSinSheet(false);
+        setSaveStatus("ok");
+        setSaveMsg("✅ Sheet actualizado. Todos verán los datos nuevos.");
         setNewUrl("");
         await loadSheet(id);
       } catch (e) { setSaveStatus("error"); setSaveMsg("❌ " + e.message); }
@@ -278,7 +290,6 @@
                       {saveMsg}
                     </div>
                   )}
-
                   <button onClick={handleSave} disabled={saveStatus==="saving"}
                     style={{background:saveStatus==="saving"?"#93C5FD":"#2563EB",color:"#fff",border:"none",borderRadius:10,padding:"12px 20px",fontSize:14,fontWeight:600,cursor:saveStatus==="saving"?"not-allowed":"pointer",width:"100%"}}>
                     {saveStatus==="saving" ? "⏳ Guardando..." : "🚀 Actualizar Sheet para todos"}
@@ -322,7 +333,6 @@
                   ℹ️ Puedes buscar por <strong>DNI</strong> o por <strong>Torre</strong>. Si el DNI empieza con 0, omítelo.
                 </div>
                 {lastUpdate && <div style={{fontSize:11,color:"#94A3B8",textAlign:"right",marginTop:6}}>Última carga: {lastUpdate}</div>}
-
                 {sheetErrs.length > 0 && (
                   <div style={{background:"#FFFBEB",borderRadius:8,padding:"8px 12px",marginTop:8,color:"#92400E",fontSize:12}}>
                     {sheetErrs.map((e,i)=><div key={i}>⚠️ {e}</div>)}
@@ -335,7 +345,9 @@
                 <span style={{fontSize:20}}>📄</span>
                 <div>
                   <span style={{fontSize:10,color:"#94A3B8",display:"block"}}>Archivo cargado</span>
-                  <span style={{fontSize:14,fontWeight:700,color:"#166534"}}>{sheetTitle || "Sin nombre — el admin puede agregar el nombre al cargar el Sheet"}</span>
+                  <span style={{fontSize:14,fontWeight:700,color:"#166534"}}>
+                    {sheetTitle || "Sin nombre — el admin puede agregar el nombre al cargar el Sheet"}
+                  </span>
                 </div>
               </div>
 
